@@ -10,8 +10,8 @@ LHRP_Peer peer3 = {{0xA0, 0xB7, 0x65, 0x2C, 0x5A, 0x18}, {3}};
 
 /* create node with peers */
 LHRP_Node net({
-    peer1,
     peer2,
+    peer1,
     peer3,
 });
 
@@ -19,6 +19,13 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println("LHRP Node Starting...");
+
+  // led test
+  pinMode(LED_BUILTIN, OUTPUT);
+  analogWrite(LED_BUILTIN, 200);
+  delay(500);
+  analogWrite(LED_BUILTIN, 0);
+
   // print the esps mac
   Serial.print("MAC Address: {");
   uint8_t mac[6];
@@ -36,11 +43,11 @@ void setup()
 
   delay(1000);
 
-  net.onPocketReceive([&](const Pocket &pocket) { // lambda on receive
+  net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
     Serial.print("Received pocket from Address ");
-    Serial.print(pocket.address[0]);
-    pinMode(LED_BUILTIN, OUTPUT);
-    analogWrite(LED_BUILTIN, pocket.payload[0]); // set LED brightness from payload
+    Serial.println(pocket.address[0]);
+    analogWrite(LED_BUILTIN, pocket.payload[0]);
+    Serial.println("LED brightness set to " + String(pocket.payload[0]));
   });
 
   net.begin();
@@ -48,5 +55,6 @@ void setup()
 
 void loop()
 {
+  // net.send(Pocket{{2}, {(uint8_t)random(255)}}); // send test pocket to address 1
   delay(1000);
 }

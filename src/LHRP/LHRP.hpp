@@ -1,7 +1,9 @@
 #pragma once
+
 #include <vector>
 #include <array>
 #include <initializer_list>
+#include <functional>
 
 #include <WiFi.h>
 #include <esp_now.h>
@@ -20,26 +22,30 @@ struct LHRP_Peer
 class LHRP_Node
 {
 public:
-    LHRP_Node(initializer_list<LHRP_Peer> peers);
+    Node node;
+
+    LHRP_Node(std::initializer_list<LHRP_Peer> peers);
 
     void begin();
     void send(const Pocket &p);
+    void sendRaw(uint8_t pin, const RawPacket &raw);
+
+    void onPocketReceive(std::function<void(const Pocket &)> cb)
+    {
+        rxCallback = cb;
+    }
+
+    uint8_t receive(const Pocket &p);
+
+    // Needed for ESP-NOW static callback
+    static void onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len);
 
 private:
-    static LHRP_Node *instance;
+    static LHRP_Node *instance; // Singleton for static callback
+    void onReceive(const uint8_t *mac, const uint8_t *data, int len);
 
-    Node node;
-    vector<LHRP_Peer> peers;
-
-    static void onReceiveStatic(
-        const uint8_t *mac,
-        const uint8_t *data,
-        int len);
-
-    void onReceive(
-        const uint8_t *mac,
-        const uint8_t *data,
-        int len);
+    vector<LHRP_Peer> peers; // Store all peers
+    std::function<void(const Pocket &)> rxCallback;
 
     void addPeer(const array<uint8_t, 6> &mac);
 };

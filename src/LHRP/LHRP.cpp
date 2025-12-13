@@ -7,7 +7,7 @@ LHRP_Node::LHRP_Node(initializer_list<LHRP_Peer> list)
     instance = this;
 
     bool first = true;
-    uint8_t pin = 1;
+    uint8_t pin = 0;
 
     for (auto &p : list)
     {
@@ -20,8 +20,7 @@ LHRP_Node::LHRP_Node(initializer_list<LHRP_Peer> list)
         }
         else
         {
-            node.connections.push_back({.address = p.address,
-                                        .pin = pin++});
+            node.connections.push_back({.address = p.address, .pin = ++pin});
         }
     }
 }
@@ -56,12 +55,20 @@ void LHRP_Node::addPeer(const array<uint8_t, 6> &mac)
 void LHRP_Node::send(const Pocket &p)
 {
     uint8_t pin = node.send(p);
+
+    if (eq(node.you, p.address))
+    {
+        if (rxCallback)
+            rxCallback(p);
+        return;
+    }
+
     if (pin == 0)
         return;
 
     RawPacket raw = serializePocket(p);
 
-    esp_now_send(
+    esp_err_t err = esp_now_send(
         peers[pin].mac.data(),
         (uint8_t *)&raw,
         sizeof(RawPacket));
@@ -97,4 +104,19 @@ void LHRP_Node::onReceive(
         peers[out].mac.data(),
         (uint8_t *)&raw,
         sizeof(RawPacket));
+}
+
+uint8_t LHRP_Node::receive(const Pocket &p)
+{
+    // packet is for this node
+    if (eq(node.you, p.address))
+    {
+        if (rxCallback)
+            rxCallback(p);
+
+        return 0; // do not forward
+    }
+
+    // otherwise route
+    return node.send(p);
 }
