@@ -10,21 +10,26 @@ LHRP_Peer peer3 = {{0xA0, 0xB7, 0x65, 0x2C, 0x5A, 0x18}, {3}};
 
 /* create node with peers */
 LHRP_Node net({
-    peer2,
     peer1,
+    peer2,
     peer3,
 });
+
+void blink()
+{
+  // led test
+  pinMode(LED_BUILTIN, OUTPUT);
+  analogWrite(LED_BUILTIN, 200);
+  delay(100);
+  analogWrite(LED_BUILTIN, 0);
+}
 
 void setup()
 {
   Serial.begin(115200);
   Serial.println("LHRP Node Starting...");
 
-  // led test
-  pinMode(LED_BUILTIN, OUTPUT);
-  analogWrite(LED_BUILTIN, 200);
-  delay(100);
-  analogWrite(LED_BUILTIN, 0);
+  blink();
 
   // print the esps mac
   Serial.print("MAC Address: {");
@@ -44,6 +49,7 @@ void setup()
   delay(1000);
 
   net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
+    blink();
     Serial.println("Received pocket for Address:");
     Serial.println(pocket.address[0]);
     analogWrite(LED_BUILTIN, pocket.payload[0]);
@@ -55,8 +61,11 @@ void setup()
 
 void loop()
 {
-  // Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 2
-  // Serial.println(net.send(Pocket{{3}, {(uint8_t)random(255)}})); // send test pocket to address 3
-  // Serial.println(net.send(Pocket{{2, 1}, {(uint8_t)random(255)}})); // send test pocket to address 2 (with subadress 1)
+  if (random(5) == 0)
+    Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 2
+  if (random(5) == 0)
+    Serial.println(net.send(Pocket{{3}, {(uint8_t)random(255)}})); // send test pocket to address 3
+  if (random(5) == 0)
+    Serial.println(net.send(Pocket{{2, 1}, {(uint8_t)random(255)}})); // send test pocket to address 2 (with subadress 1)
   delay(1000);
 }

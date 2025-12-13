@@ -33,7 +33,6 @@ bool LHRP_Node::begin()
 
     if (esp_now_init() != ESP_OK)
     {
-        Serial.println("[LHRP] ESP-NOW init failed");
         return false;
     }
 
