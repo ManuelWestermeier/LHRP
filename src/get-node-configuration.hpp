@@ -28,7 +28,7 @@ LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
         peer1.mac[4] == mac[4] &&
         peer1.mac[5] == mac[5])
     {
-        return LHRP_Node({peer1, peer2, peer3});
+        return LHRP_Node({peer1, peer2});
     }
     else if (peer2.mac[0] == mac[0] &&
              peer2.mac[1] == mac[1] &&
@@ -46,7 +46,7 @@ LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
              peer3.mac[4] == mac[4] &&
              peer3.mac[5] == mac[5])
     {
-        return LHRP_Node({peer3, peer1, peer2});
+        return LHRP_Node({peer3, peer2});
     }
 
     return LHRP_Node({
