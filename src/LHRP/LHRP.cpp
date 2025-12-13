@@ -1,4 +1,6 @@
 #include "LHRP.hpp"
+#include <WiFi.h>
+#include <esp_now.h>
 
 LHRP_Node *LHRP_Node::instance = nullptr;
 
@@ -54,8 +56,10 @@ void LHRP_Node::addPeer(const array<uint8_t, 6> &mac)
 
 void LHRP_Node::send(const Pocket &p)
 {
+    // The routing logic (node.send) will determine the next hop pin.
     uint8_t pin = node.send(p);
 
+    // If the packet is for this node, handle it locally
     if (eq(node.you, p.address))
     {
         if (rxCallback)
@@ -63,6 +67,7 @@ void LHRP_Node::send(const Pocket &p)
         return;
     }
 
+    // If pin is 0 here, it means the packet couldn't be routed.
     if (pin == 0)
         return;
 
@@ -96,27 +101,31 @@ void LHRP_Node::onReceive(
 
     Pocket p = deserializePocket(raw);
 
-    uint8_t out = node.recieve(p);
+    // FIX: Call LHRP_Node::receive (which handles the rxCallback) instead of Node::recieve (just routing).
+    uint8_t out = this->receive(p);
+
+    // If 'out' is 0, the packet was either consumed locally or dropped.
     if (out == 0)
         return;
 
+    // Otherwise, forward the raw packet.
     esp_now_send(
         peers[out].mac.data(),
         (uint8_t *)&raw,
         sizeof(RawPacket));
 }
 
+// This function correctly handles local delivery and forwarding logic.
 uint8_t LHRP_Node::receive(const Pocket &p)
 {
     // packet is for this node
     if (eq(node.you, p.address))
     {
         if (rxCallback)
-            rxCallback(p);
-
-        return 0; // do not forward
+            rxCallback(p); // <-- Local delivery to user's callback
+        return 0;          // do not forward
     }
 
-    // otherwise route
+    // otherwise route (using the internal router)
     return node.send(p);
 }

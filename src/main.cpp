@@ -23,7 +23,7 @@ void setup()
   // led test
   pinMode(LED_BUILTIN, OUTPUT);
   analogWrite(LED_BUILTIN, 200);
-  delay(500);
+  delay(100);
   analogWrite(LED_BUILTIN, 0);
 
   // print the esps mac
