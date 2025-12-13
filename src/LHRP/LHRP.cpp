@@ -99,18 +99,5 @@ void LHRP_Node::onReceive(
 
     Pocket p = deserializePocket(raw);
 
-    uint8_t pin = node.send(p);
-
-    if (pin == 0)
-    {
-        if (rxCallback)
-            rxCallback(p); // <-- Local delivery to user's callback
-        return;            // do not forward
-    }
-
-    // Otherwise, forward the raw packet.
-    esp_err_t err = esp_now_send(
-        peers[pin - 1].mac.data(),
-        (uint8_t *)&raw,
-        sizeof(RawPacket));
+    send(p);
 }

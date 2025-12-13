@@ -44,7 +44,7 @@ void setup()
   delay(1000);
 
   net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
-    Serial.print("Received pocket from Address ");
+    Serial.println("Received pocket for Address:");
     Serial.println(pocket.address[0]);
     analogWrite(LED_BUILTIN, pocket.payload[0]);
     Serial.println("LED brightness set to " + String(pocket.payload[0]));
