@@ -18,6 +18,7 @@ LHRP_Node::LHRP_Node(initializer_list<LHRP_Peer> list)
         {
             node.you = p.address;
             first = false;
+            ownMac = p.mac;
         }
         else
         {

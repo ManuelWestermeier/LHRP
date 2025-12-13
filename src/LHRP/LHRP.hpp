@@ -9,7 +9,7 @@
 #include <esp_now.h>
 
 #include "protocol.hpp"
-#include "raw_packet.hpp"
+#include "raw-packet.hpp"
 
 using namespace std;
 
@@ -23,6 +23,7 @@ class LHRP_Node
 {
 public:
     Node node;
+    array<uint8_t, 6> ownMac;
 
     LHRP_Node(std::initializer_list<LHRP_Peer> peers);
 
@@ -38,10 +39,10 @@ public:
     static void onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len);
 
 private:
+    vector<LHRP_Peer> peers;    // Store all peers
     static LHRP_Node *instance; // Singleton for static callback
     void onReceive(const uint8_t *mac, const uint8_t *data, int len);
 
-    vector<LHRP_Peer> peers; // Store all peers
     std::function<void(const Pocket &)> rxCallback;
 
     bool addPeer(const array<uint8_t, 6> &mac);

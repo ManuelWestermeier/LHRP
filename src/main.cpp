@@ -3,17 +3,12 @@
 
 #define LED_BUILTIN 2 // Define built-in LED pin for ESP32
 
-/* optional test address */
-LHRP_Peer peer1 = {{0x88, 0x13, 0xBF, 0x0B, 0xA6, 0x6C}, {1}};
-LHRP_Peer peer2 = {{0x88, 0x13, 0xBF, 0x0B, 0x62, 0x18}, {2}};
-LHRP_Peer peer3 = {{0xA0, 0xB7, 0x65, 0x2C, 0x5A, 0x18}, {3}};
+#include "get-node-configuration.hpp"
+
+#define CVG networkConfiguration1
 
 /* create node with peers */
-LHRP_Node net({
-    peer1,
-    peer2,
-    peer3,
-});
+LHRP_Node net = getNodeConfiguration(CVG);
 
 void blink()
 {
@@ -61,11 +56,14 @@ void setup()
 
 void loop()
 {
-  if (random(5) == 0)
-    Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 2
-  if (random(5) == 0)
-    Serial.println(net.send(Pocket{{3}, {(uint8_t)random(255)}})); // send test pocket to address 3
-  if (random(5) == 0)
-    Serial.println(net.send(Pocket{{2, 1}, {(uint8_t)random(255)}})); // send test pocket to address 2 (with subadress 1)
+  if (isSender())
+  {
+    if (random(5) == 0)
+      Serial.println(net.send(Pocket{CVG.node1, {(uint8_t)random(255)}}));
+    if (random(5) == 0)
+      Serial.println(net.send(Pocket{CVG.node2, {(uint8_t)random(255)}}));
+    if (random(5) == 0)
+      Serial.println(net.send(Pocket{CVG.node3, {(uint8_t)random(255)}}));
+  }
   delay(1000);
 }
