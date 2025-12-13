@@ -26,7 +26,7 @@ public:
 
     LHRP_Node(std::initializer_list<LHRP_Peer> peers);
 
-    void begin();
+    bool begin();
     bool send(const Pocket &p);
 
     void onPocketReceive(std::function<void(const Pocket &)> cb)
@@ -44,5 +44,5 @@ private:
     vector<LHRP_Peer> peers; // Store all peers
     std::function<void(const Pocket &)> rxCallback;
 
-    void addPeer(const array<uint8_t, 6> &mac);
+    bool addPeer(const array<uint8_t, 6> &mac);
 };

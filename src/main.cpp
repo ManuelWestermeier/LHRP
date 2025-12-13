@@ -10,8 +10,8 @@ LHRP_Peer peer3 = {{0xA0, 0xB7, 0x65, 0x2C, 0x5A, 0x18}, {3}};
 
 /* create node with peers */
 LHRP_Node net({
-    peer1,
     peer2,
+    peer1,
     peer3,
 });
 
@@ -50,11 +50,13 @@ void setup()
     Serial.println("LED brightness set to " + String(pocket.payload[0]));
   });
 
-  net.begin();
+  Serial.println(net.begin() ? "LHRP Node Started!" : "LHRP Node Failed to Start!");
 }
 
 void loop()
 {
-  Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 1
+  // Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 2
+  // Serial.println(net.send(Pocket{{3}, {(uint8_t)random(255)}})); // send test pocket to address 3
+  // Serial.println(net.send(Pocket{{2, 1}, {(uint8_t)random(255)}})); // send test pocket to address 2 (with subadress 1)
   delay(1000);
 }
