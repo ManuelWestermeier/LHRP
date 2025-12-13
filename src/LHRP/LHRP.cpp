@@ -13,7 +13,6 @@ LHRP_Node::LHRP_Node(initializer_list<LHRP_Peer> list)
 
     for (auto &p : list)
     {
-        peers.push_back(p);
 
         if (first)
         {
@@ -23,6 +22,7 @@ LHRP_Node::LHRP_Node(initializer_list<LHRP_Peer> list)
         else
         {
             node.connections.push_back({.address = p.address, .pin = ++pin});
+            peers.push_back(p);
         }
     }
 }
@@ -54,29 +54,27 @@ void LHRP_Node::addPeer(const array<uint8_t, 6> &mac)
     esp_now_add_peer(&peer);
 }
 
-void LHRP_Node::send(const Pocket &p)
+bool LHRP_Node::send(const Pocket &p)
 {
     // The routing logic (node.send) will determine the next hop pin.
     uint8_t pin = node.send(p);
 
     // If the packet is for this node, handle it locally
-    if (eq(node.you, p.address))
+    if (pin == 0)
     {
         if (rxCallback)
             rxCallback(p);
-        return;
+        return true;
     }
-
-    // If pin is 0 here, it means the packet couldn't be routed.
-    if (pin == 0)
-        return;
 
     RawPacket raw = serializePocket(p);
 
     esp_err_t err = esp_now_send(
-        peers[pin].mac.data(),
+        peers[pin - 1].mac.data(),
         (uint8_t *)&raw,
         sizeof(RawPacket));
+
+    return err == ESP_OK;
 }
 
 void LHRP_Node::onReceiveStatic(
@@ -101,31 +99,18 @@ void LHRP_Node::onReceive(
 
     Pocket p = deserializePocket(raw);
 
-    // FIX: Call LHRP_Node::receive (which handles the rxCallback) instead of Node::recieve (just routing).
-    uint8_t out = this->receive(p);
+    uint8_t pin = node.send(p);
 
-    // If 'out' is 0, the packet was either consumed locally or dropped.
-    if (out == 0)
-        return;
-
-    // Otherwise, forward the raw packet.
-    esp_now_send(
-        peers[out].mac.data(),
-        (uint8_t *)&raw,
-        sizeof(RawPacket));
-}
-
-// This function correctly handles local delivery and forwarding logic.
-uint8_t LHRP_Node::receive(const Pocket &p)
-{
-    // packet is for this node
-    if (eq(node.you, p.address))
+    if (pin == 0)
     {
         if (rxCallback)
             rxCallback(p); // <-- Local delivery to user's callback
-        return 0;          // do not forward
+        return;            // do not forward
     }
 
-    // otherwise route (using the internal router)
-    return node.send(p);
+    // Otherwise, forward the raw packet.
+    esp_err_t err = esp_now_send(
+        peers[pin - 1].mac.data(),
+        (uint8_t *)&raw,
+        sizeof(RawPacket));
 }

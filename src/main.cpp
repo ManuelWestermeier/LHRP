@@ -10,8 +10,8 @@ LHRP_Peer peer3 = {{0xA0, 0xB7, 0x65, 0x2C, 0x5A, 0x18}, {3}};
 
 /* create node with peers */
 LHRP_Node net({
-    peer2,
     peer1,
+    peer2,
     peer3,
 });
 
@@ -55,6 +55,6 @@ void setup()
 
 void loop()
 {
-  // net.send(Pocket{{2}, {(uint8_t)random(255)}}); // send test pocket to address 1
+  Serial.println(net.send(Pocket{{2}, {(uint8_t)random(255)}})); // send test pocket to address 1
   delay(1000);
 }

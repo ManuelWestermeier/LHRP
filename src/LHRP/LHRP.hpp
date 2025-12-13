@@ -27,15 +27,12 @@ public:
     LHRP_Node(std::initializer_list<LHRP_Peer> peers);
 
     void begin();
-    void send(const Pocket &p);
-    void sendRaw(uint8_t pin, const RawPacket &raw);
+    bool send(const Pocket &p);
 
     void onPocketReceive(std::function<void(const Pocket &)> cb)
     {
         rxCallback = cb;
     }
-
-    uint8_t receive(const Pocket &p);
 
     // Needed for ESP-NOW static callback
     static void onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len);

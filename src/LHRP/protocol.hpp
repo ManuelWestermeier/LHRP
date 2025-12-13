@@ -89,9 +89,4 @@ struct Node
 
         return best.pin;
     }
-
-    uint8_t recieve(const Pocket &p)
-    {
-        return send(p);
-    }
 };
