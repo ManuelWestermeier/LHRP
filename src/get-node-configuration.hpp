@@ -10,7 +10,7 @@ struct NetworkConfiguration
     Address node3;
 };
 
-NetworkConfiguration networkConfiguration1 = {{1}, {2}, {3}};
+NetworkConfiguration networkConfiguration1 = {{1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1, 1}};
 
 LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
 {
