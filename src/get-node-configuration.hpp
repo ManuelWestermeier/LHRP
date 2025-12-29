@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <initializer_list>
 
-#include "LHRP/LHRP.hpp"
+#include "LHRP-secure/LHRP.hpp"
 
 struct NetworkConfiguration
 {

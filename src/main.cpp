@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include "LHRP-secure/LHRP.hpp"
 
 #define LED_BUILTIN 2 // Define built-in LED pin for ESP32
@@ -49,7 +50,8 @@ void setup()
   net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
     blink();
     Serial.println("Received pocket for Address:");
-    Serial.println(pocket.address[0]);
+    Serial.println(pocket.destAddress[0]);
+    Serial.println(pocket.srcAddress[0]);
     analogWrite(LED_BUILTIN, pocket.payload[0]);
     Serial.println("LED brightness set to " + String(pocket.payload[0]));
   });

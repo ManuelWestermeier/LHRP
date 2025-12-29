@@ -4,6 +4,8 @@
 #include <algorithm>
 #include "pocket.hpp"
 
+#define LHRP_PIN_ERROR 255
+
 using namespace std;
 
 struct Match
@@ -61,16 +63,15 @@ struct Node
 
     uint8_t send(const Pocket &p)
     {
-        if (connections.empty())
-            return 0;
         if (eq(you, p.destAddress))
             return 0;
+
+        if (connections.empty())
+            return LHRP_PIN_ERROR;
 
         Connection best = connections[0];
         int bestIdx = matchIndex(match(best.address, p.destAddress));
         size_t bestLen = best.address.size();
-
-        bool directChild = isChildren(p.destAddress, you);
 
         for (size_t i = 1; i < connections.size(); i++)
         {
@@ -85,8 +86,15 @@ struct Node
             }
         }
 
-        if (directChild && !isChildren(best.address, you))
+        // wen child nicht vorhanden ist
+        bool directChild = isChildren(p.destAddress, you);
+        int ownMatchIdx = matchIndex(match(you, p.destAddress));
+        if (directChild && (!isChildren(best.address, you) || bestIdx < ownMatchIdx))
             return 0;
+
+        // wenn parent nicht vorhanden ist
+        if (bestIdx <= ownMatchIdx)
+            return LHRP_PIN_ERROR;
 
         return best.pin;
     }

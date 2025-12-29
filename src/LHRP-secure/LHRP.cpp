@@ -64,6 +64,9 @@ bool LHRP_Node_Secure::send(const Pocket &p)
     // The routing logic (node.send) will determine the next hop pin.
     uint8_t pin = node.send(p);
 
+    if (pin == LHRP_PIN_ERROR)
+        return false;
+
     // If the packet is for this node, handle it locally
     if (pin == 0)
     {
@@ -72,7 +75,7 @@ bool LHRP_Node_Secure::send(const Pocket &p)
         return true;
     }
 
-    RawPacket raw = serializePocket(p);
+    RawPacket raw = serializePocket(p, netId, key);
 
     esp_err_t err = esp_now_send(
         peers[pin - 1].mac.data(),
@@ -102,7 +105,9 @@ void LHRP_Node_Secure::onReceive(
     RawPacket raw;
     memcpy(&raw, data, sizeof(RawPacket));
 
-    Pocket p = deserializePocket(raw);
+    Pocket p = deserializePocket(raw, netId, key);
+    if (p.errored)
+        return;
 
     send(p);
 }
