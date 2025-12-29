@@ -98,10 +98,10 @@ inline bool aesGcmDecrypt(uint8_t *data, size_t len, const uint8_t key[16], cons
 /* ============================================================
    Calculate max payload
    ============================================================ */
-inline uint8_t maxPayloadSize(const Pocket &p)
+inline uint8_t maxPayloadSizePocket(const Address &srcAddress, const Address &destAddress)
 {
-    uint8_t srcLen = min((size_t)MAX_ADDRESS_DEPTH, p.srcAddress.size());
-    uint8_t destLen = min((size_t)MAX_ADDRESS_DEPTH, p.destAddress.size());
+    uint8_t srcLen = min((size_t)MAX_ADDRESS_DEPTH, srcAddress.size());
+    uint8_t destLen = min((size_t)MAX_ADDRESS_DEPTH, destAddress.size());
     size_t used = srcLen + destLen;
     if (used >= sizeof(RawPacket::rawData))
         return 0;

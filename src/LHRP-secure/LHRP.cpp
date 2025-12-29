@@ -92,6 +92,11 @@ bool LHRP_Node_Secure::send(const Address &dest, const vector<uint8_t> &payload)
     return send(p);
 }
 
+int LHRP_Node_Secure::maxPayloadSize(const Address &destAddress)
+{
+    return maxPayloadSizePocket(node.you, destAddress);
+}
+
 bool LHRP_Node_Secure::send(const Pocket &p)
 {
     uint8_t pin = node.send(p);

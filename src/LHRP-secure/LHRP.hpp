@@ -32,6 +32,7 @@ public:
     bool begin();
     bool send(const Pocket &p);
     bool send(const Address &dest, const vector<uint8_t> &payload);
+    int maxPayloadSize(const Address &destAddress);
 
     void onPocketReceive(std::function<void(const Pocket &)> cb)
     {

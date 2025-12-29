@@ -69,14 +69,27 @@ void loop()
 {
   if (isSender())
   {
-    auto srcAddress = CVG.node1;
-    auto payload = {(uint8_t)random(255)};
-    if (random(5) == 0)
-      Serial.println(net.send(CVG.node1, payload));
-    if (random(5) == 0)
-      Serial.println(net.send(CVG.node2, payload));
-    if (random(5) == 0)
-      Serial.println(net.send(CVG.node3, payload));
+    Address destAddress;
+
+    switch (random(3))
+    {
+    case 0:
+      destAddress = CVG.node1;
+      break;
+    case 1:
+      destAddress = CVG.node2;
+      break;
+    default:
+      destAddress = CVG.node3;
+      break;
+    }
+
+    std::vector<uint8_t> payload = {(uint8_t)random(255)};
+    for (int i = 0; i < net.maxPayloadSize(destAddress) - 1; i++)
+    {
+      payload.push_back(0);
+    }
+    Serial.println(net.send(destAddress, payload) ? "Send" : "Error Sending");
   }
   delay(1000);
 }
