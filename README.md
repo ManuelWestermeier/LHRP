@@ -167,4 +167,4 @@ LHRP/
 
 ## License
 
-Not specified.
+Creative Common
