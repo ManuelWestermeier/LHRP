@@ -4,9 +4,10 @@
 
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
 
-LHRP_Node_Secure::LHRP_Node_Secure(const array<uint8_t, 16> &key, initializer_list<LHRP_Peer> list)
+LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key, initializer_list<LHRP_Peer> list)
 {
     instance = this;
+    this->netId = netId;
     this->key = key;
 
     bool first = true;

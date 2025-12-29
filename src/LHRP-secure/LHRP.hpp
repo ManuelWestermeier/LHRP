@@ -25,8 +25,9 @@ public:
     Node node;
     array<uint8_t, 6> ownMac;
     array<uint8_t, 16> key;
+    uint8_t netId;
 
-    LHRP_Node_Secure(const array<uint8_t, 16> &key, std::initializer_list<LHRP_Peer> peers);
+    LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key, std::initializer_list<LHRP_Peer> peers);
 
     bool begin();
     bool send(const Pocket &p);
