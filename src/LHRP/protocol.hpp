@@ -63,18 +63,18 @@ struct Node
     {
         if (connections.empty())
             return 0;
-        if (eq(you, p.destAddress))
+        if (eq(you, p.address))
             return 0;
 
         Connection best = connections[0];
-        int bestIdx = matchIndex(match(best.address, p.destAddress));
+        int bestIdx = matchIndex(match(best.address, p.address));
         size_t bestLen = best.address.size();
 
-        bool directChild = isChildren(p.destAddress, you);
+        bool directChild = isChildren(p.address, you);
 
         for (size_t i = 1; i < connections.size(); i++)
         {
-            int idx = matchIndex(match(connections[i].address, p.destAddress));
+            int idx = matchIndex(match(connections[i].address, p.address));
             size_t len = connections[i].address.size();
 
             if (idx > bestIdx || (idx == bestIdx && len > bestLen))

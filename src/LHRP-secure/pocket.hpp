@@ -5,18 +5,19 @@
 
 using namespace std;
 
-struct Address : public vector<uint16_t>
+struct Address : public vector<uint8_t>
 {
     // inherit vector constructors
-    using vector<uint16_t>::vector;
+    using vector<uint8_t>::vector;
 
     // initializer_list constructor
-    Address(std::initializer_list<uint16_t> init)
-        : vector<uint16_t>(init) {}
+    Address(std::initializer_list<uint8_t> init)
+        : vector<uint8_t>(init) {}
 };
 
 struct Pocket
 {
-    Address address;
+    Address destAddress;
+    Address srcAddress;
     vector<uint8_t> payload;
 };

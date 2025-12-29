@@ -8,8 +8,10 @@
 #define CVG networkConfiguration1
 
 #define KEY {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10}
+#define NET_ID 111
 /* create node with peers */
-LHRP_Node_Secure net = LHRP_Node_Secure(KEY, getNodeConfiguration(CVG));
+LHRP_Node_Secure net = LHRP_Node_Secure(NET_ID, KEY, getNodeConfiguration(CVG));
+// LHRP_Node net = LHRP_Node(getNodeConfiguration(CVG));
 
 void blink()
 {
