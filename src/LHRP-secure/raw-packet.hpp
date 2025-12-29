@@ -161,7 +161,7 @@ inline RawPacket serializePocket(
 
     aesGcmEncrypt(
         r.rawData,
-        offset,
+        sizeof(r.rawData),
         key.data(),
         r.iv,
         r.tag);

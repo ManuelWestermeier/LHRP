@@ -11,7 +11,7 @@
 #define KEY {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10}
 #define NET_ID 111
 /* create node with peers */
-LHRP_Node_Secure net = LHRP_Node_Secure(NET_ID, KEY, getNodeConfiguration(CVG));
+LHRP_Node_Secure net = getNodeSecure(NET_ID, KEY, CVG);
 // LHRP_Node net = LHRP_Node(getNodeConfiguration(CVG));
 
 void blink()
@@ -30,6 +30,7 @@ void setup()
 
   blink();
 
+  Serial.println("Node Addresssize: " + String(net.node.you.size()));
   // print the esps mac
   Serial.print("MAC Address: {");
   uint8_t mac[6];
@@ -50,10 +51,15 @@ void setup()
   net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
     blink();
     Serial.println("Received pocket for Address:");
-    Serial.println(pocket.destAddress[0]);
-    Serial.println(pocket.srcAddress[0]);
-    analogWrite(LED_BUILTIN, pocket.payload[0]);
-    Serial.println("LED brightness set to " + String(pocket.payload[0]));
+    Serial.println(pocket.destAddress.size());
+    Serial.println(pocket.srcAddress.size());
+    Serial.println(pocket.payload.size());
+    if (!pocket.payload.empty())
+    {
+      analogWrite(LED_BUILTIN, pocket.payload[0]);
+      analogWrite(LED_BUILTIN, pocket.payload[0]);
+      Serial.println("LED brightness set to " + String(pocket.payload[0]));
+    }
   });
 
   Serial.println(net.begin() ? "LHRP Node Started!" : "LHRP Node Failed to Start!");
