@@ -8,11 +8,18 @@
 
 struct RawPacket
 {
+    uint8_t netId;
     uint8_t lengths;
-    uint8_t rawData[249];
+    uint8_t iv[12];
+    uint8_t hmac[16];
+    uint8_t rawData[250 - 1 - 1 - 12 - 16]; // max esp-now payload - netId - iv - lengths - hmac
 };
 
-inline RawPacket serializePocket(const Pocket &p)
+uint8_t ReplayProtectionBuffer[16 * 60]; // buffer to store used hmacs for replay protection
+
+// encrypt addresses and payload with aes and hmac for integrity.
+
+inline RawPacket serializePocket(const Pocket &p, uint8_t netId, const array<uint8_t, 16> &key)
 {
     RawPacket r{};
 
@@ -39,8 +46,11 @@ inline RawPacket serializePocket(const Pocket &p)
     return r;
 }
 
-inline Pocket deserializePocket(const RawPacket &r)
+inline uint8_t maxPayloadSize(const Pocket pocketWithOnlyAdresses) {}
+
+inline Pocket deserializePocket(const RawPacket &r, uint8_t netId, const array<uint8_t, 16> &key)
 {
+    // if error (wrong net id / hamac / hamac existed in ReplayProtectionBuffer) return errored Pocket p.errored = true
     Pocket p;
 
     uint8_t destLen = r.lengths >> 4;

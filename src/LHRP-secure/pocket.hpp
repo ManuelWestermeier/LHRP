@@ -20,4 +20,5 @@ struct Pocket
     Address destAddress;
     Address srcAddress;
     vector<uint8_t> payload;
+    bool errored;
 };
