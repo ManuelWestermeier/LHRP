@@ -31,6 +31,7 @@ public:
 
     bool begin();
     bool send(const Pocket &p);
+    bool send(const Address &dest, const vector<uint8_t> &payload);
 
     void onPocketReceive(std::function<void(const Pocket &)> cb)
     {

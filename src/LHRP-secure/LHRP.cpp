@@ -10,42 +10,64 @@ LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key,
     this->netId = netId;
     this->key = key;
 
+    // Serial.println("[LHRP] Initializing node...");
+
     bool first = true;
     uint8_t pin = 0;
 
     for (auto &p : list)
     {
-
         if (first)
         {
             node.you = p.address;
             first = false;
             ownMac = p.mac;
+            // Serial.printf("[LHRP] Set self address: %u, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+            //   p.address,
+            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
         }
         else
         {
             node.connections.push_back({.address = p.address, .pin = ++pin});
             peers.push_back(p);
+            // Serial.printf("[LHRP] Added peer %u, MAC: %02X:%02X:%02X:%02X:%02X:%02X, pin: %u\n",
+            //   p.address,
+            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5],
+            //   pin);
         }
     }
 }
 
 bool LHRP_Node_Secure::begin()
 {
+    // Serial.println("[LHRP] Starting WiFi in STA mode...");
     WiFi.mode(WIFI_STA);
 
     if (esp_now_init() != ESP_OK)
     {
+        // Serial.println("[LHRP] ERROR: ESP-NOW init failed!");
         return false;
     }
 
+    // Serial.println("[LHRP] ESP-NOW initialized successfully.");
     esp_now_register_recv_cb(onReceiveStatic);
 
     bool allPeersAdded = true;
 
     for (auto &p : peers)
+    {
         if (!addPeer(p.mac))
+        {
+            // Serial.printf("[LHRP] ERROR: Failed to add peer MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
             allPeersAdded = false;
+        }
+        else
+        {
+            // Serial.printf("[LHRP] Peer added successfully: %02X:%02X:%02X:%02X:%02X:%02X\n",
+            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
+        }
+    }
 
     return allPeersAdded;
 }
@@ -56,31 +78,47 @@ bool LHRP_Node_Secure::addPeer(const array<uint8_t, 6> &mac)
     memcpy(peer.peer_addr, mac.data(), 6);
     peer.channel = 0;
     peer.encrypt = false;
-    return esp_now_add_peer(&peer) == ESP_OK;
+
+    esp_err_t res = esp_now_add_peer(&peer);
+    // Serial.printf("[LHRP] Adding peer %02X:%02X:%02X:%02X:%02X:%02X... %s\n",
+    //   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+    //   res == ESP_OK ? "SUCCESS" : "FAILURE");
+    return res == ESP_OK;
+}
+
+bool LHRP_Node_Secure::send(const Address &dest, const vector<uint8_t> &payload)
+{
+    Pocket p{.destAddress = dest, .srcAddress = node.you, .payload = payload};
+    return send(p);
 }
 
 bool LHRP_Node_Secure::send(const Pocket &p)
 {
-    // The routing logic (node.send) will determine the next hop pin.
     uint8_t pin = node.send(p);
+    // Serial.printf("[LHRP] Routing pocket to pin %u\n", pin);
 
     if (pin == LHRP_PIN_ERROR)
+    {
+        // Serial.println("[LHRP] ERROR: Invalid routing pin.");
         return false;
+    }
 
-    // If the packet is for this node, handle it locally
     if (pin == 0)
     {
+        // Serial.println("[LHRP] Packet is for this node, calling rxCallback.");
         if (rxCallback)
             rxCallback(p);
         return true;
     }
 
     RawPacket raw = serializePocket(p, netId, key);
+    esp_err_t err = esp_now_send(peers[pin - 1].mac.data(), (uint8_t *)&raw, sizeof(RawPacket));
 
-    esp_err_t err = esp_now_send(
-        peers[pin - 1].mac.data(),
-        (uint8_t *)&raw,
-        sizeof(RawPacket));
+    // Serial.printf("[LHRP] Sending packet to peer %u (%02X:%02X:%02X:%02X:%02X:%02X)... %s\n",
+    //   pin,
+    //   peers[pin - 1].mac[0], peers[pin - 1].mac[1], peers[pin - 1].mac[2],
+    //   peers[pin - 1].mac[3], peers[pin - 1].mac[4], peers[pin - 1].mac[5],
+    //   err == ESP_OK ? "SUCCESS" : "FAILURE");
 
     return err == ESP_OK;
 }
@@ -100,14 +138,21 @@ void LHRP_Node_Secure::onReceive(
     int len)
 {
     if (len != sizeof(RawPacket))
+    {
+        // Serial.println("[LHRP] ERROR: Packet size mismatch.");
         return;
+    }
 
     RawPacket raw;
     memcpy(&raw, data, sizeof(RawPacket));
 
     Pocket p = deserializePocket(raw, netId, key);
     if (p.errored)
+    {
+        // Serial.println("[LHRP] ERROR: Packet decryption/deserialization failed.");
         return;
+    }
 
+    // Serial.println("[LHRP] Packet deserialized successfully, routing...");
     send(p);
 }
