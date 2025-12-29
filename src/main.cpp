@@ -69,12 +69,14 @@ void loop()
 {
   if (isSender())
   {
+    auto srcAddress = CVG.node1;
+    auto payload = {(uint8_t)random(255)};
     if (random(5) == 0)
-      Serial.println(net.send(Pocket{CVG.node1, {(uint8_t)random(255)}}));
+      Serial.println(net.send(Pocket{CVG.node1, srcAddress, payload}));
     if (random(5) == 0)
-      Serial.println(net.send(Pocket{CVG.node2, {(uint8_t)random(255)}}));
+      Serial.println(net.send(Pocket{CVG.node2, srcAddress, payload}));
     if (random(5) == 0)
-      Serial.println(net.send(Pocket{CVG.node3, {(uint8_t)random(255)}}));
+      Serial.println(net.send(Pocket{CVG.node3, srcAddress, payload}));
   }
   delay(1000);
 }
