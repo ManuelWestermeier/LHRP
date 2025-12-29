@@ -31,7 +31,7 @@ struct RawPacket
    index = tag[0] & 0x3F
    ============================================================ */
 
-uint8_t ReplayProtectionBuffer[16 * 64];
+inline uint8_t ReplayProtectionBuffer[16 * 64];
 
 /* ------------------------------------------------------------ */
 
