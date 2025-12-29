@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
+#include <initializer_list>
+
 #include "LHRP/LHRP.hpp"
 
 struct NetworkConfiguration
@@ -12,7 +14,7 @@ struct NetworkConfiguration
 
 NetworkConfiguration networkConfiguration1 = {{1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1, 1}};
 
-LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
+initializer_list<LHRP_Peer> getNodeConfiguration(NetworkConfiguration networkConfiguration)
 {
     LHRP_Peer peer1 = {{0x88, 0x13, 0xBF, 0x0B, 0xA6, 0x6C}, networkConfiguration.node1};
     LHRP_Peer peer2 = {{0x88, 0x13, 0xBF, 0x0B, 0x62, 0x18}, networkConfiguration.node2};
@@ -28,7 +30,7 @@ LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
         peer1.mac[4] == mac[4] &&
         peer1.mac[5] == mac[5])
     {
-        return LHRP_Node({peer1, peer2});
+        return initializer_list<LHRP_Peer>({peer1, peer2});
     }
     else if (peer2.mac[0] == mac[0] &&
              peer2.mac[1] == mac[1] &&
@@ -37,7 +39,7 @@ LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
              peer2.mac[4] == mac[4] &&
              peer2.mac[5] == mac[5])
     {
-        return LHRP_Node({peer2, peer1, peer3});
+        return initializer_list<LHRP_Peer>({peer2, peer1, peer3});
     }
     else if (peer3.mac[0] == mac[0] &&
              peer3.mac[1] == mac[1] &&
@@ -46,14 +48,10 @@ LHRP_Node getNodeConfiguration(NetworkConfiguration networkConfiguration)
              peer3.mac[4] == mac[4] &&
              peer3.mac[5] == mac[5])
     {
-        return LHRP_Node({peer3, peer2});
+        return initializer_list<LHRP_Peer>({peer3, peer2});
     }
 
-    return LHRP_Node({
-        peer1,
-        peer2,
-        peer3,
-    });
+    return initializer_list<LHRP_Peer>({peer1, peer2, peer3});
 }
 
 bool isSender()

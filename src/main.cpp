@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "LHRP/LHRP.hpp"
+#include "LHRP-secure/LHRP.hpp"
 
 #define LED_BUILTIN 2 // Define built-in LED pin for ESP32
 
@@ -7,8 +7,9 @@
 
 #define CVG networkConfiguration1
 
+#define KEY {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10}
 /* create node with peers */
-LHRP_Node net = getNodeConfiguration(CVG);
+LHRP_Node_Secure net = LHRP_Node_Secure(KEY, getNodeConfiguration(CVG));
 
 void blink()
 {
