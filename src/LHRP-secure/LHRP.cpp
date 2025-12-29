@@ -1,8 +1,16 @@
 #include "LHRP.hpp"
+
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <esp_now.h>
 
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
+
+inline uint8_t netIdToChannel(uint8_t netId)
+{
+    // Map netId → WiFi channel 1..13
+    return (netId * 7 % 13) + 1;
+}
 
 LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key, initializer_list<LHRP_Peer> list)
 {
@@ -42,6 +50,7 @@ bool LHRP_Node_Secure::begin()
 {
     // Serial.println("[LHRP] Starting WiFi in STA mode...");
     WiFi.mode(WIFI_STA);
+    esp_wifi_set_channel(netIdToChannel(netId), WIFI_SECOND_CHAN_NONE);
 
     if (esp_now_init() != ESP_OK)
     {
@@ -76,7 +85,7 @@ bool LHRP_Node_Secure::addPeer(const array<uint8_t, 6> &mac)
 {
     esp_now_peer_info_t peer{};
     memcpy(peer.peer_addr, mac.data(), 6);
-    peer.channel = 0;
+    peer.channel = netIdToChannel(netId);
     peer.encrypt = false;
 
     esp_err_t res = esp_now_add_peer(&peer);
