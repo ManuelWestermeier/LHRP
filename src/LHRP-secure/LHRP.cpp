@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_now.h>
+#include <Preferences.h>
 
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
 
@@ -12,13 +13,34 @@ inline uint8_t netIdToChannel(uint8_t netId)
     return (netId * 7 % 13) + 1;
 }
 
+static string uint8ArrayToHex(const uint8_t *arr, size_t len)
+{
+    static const char hexDigits[] = "0123456789ABCDEF";
+    string s;
+    s.reserve(len * 2);
+    for (size_t i = 0; i < len; i++)
+    {
+        uint8_t v = arr[i];
+        s.push_back(hexDigits[(v >> 4) & 0xF]);
+        s.push_back(hexDigits[v & 0xF]);
+    }
+    return s;
+}
+
+string LHRP_Node_Secure::macToHexKey(const uint8_t *mac, const char *prefix)
+{
+    string machex = uint8ArrayToHex(mac, 6);
+    string key = prefix;
+    key += machex;
+    // Preferences keys max length is sufficiently large; ensure null-termination when using c_str()
+    return key;
+}
+
 LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key, initializer_list<LHRP_Peer> list)
 {
     instance = this;
     this->netId = netId;
     this->key = key;
-
-    // Serial.println("[LHRP] Initializing node...");
 
     bool first = true;
     uint8_t pin = 0;
@@ -30,36 +52,29 @@ LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key,
             node.you = p.address;
             first = false;
             ownMac = p.mac;
-            // Serial.printf("[LHRP] Set self address: %u, MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-            //   p.address,
-            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
         }
         else
         {
             node.connections.push_back({.address = p.address, .pin = ++pin});
             peers.push_back(p);
-            // Serial.printf("[LHRP] Added peer %u, MAC: %02X:%02X:%02X:%02X:%02X:%02X, pin: %u\n",
-            //   p.address,
-            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5],
-            //   pin);
         }
     }
 }
 
 bool LHRP_Node_Secure::begin()
 {
-    // Serial.println("[LHRP] Starting WiFi in STA mode...");
     WiFi.mode(WIFI_STA);
     esp_wifi_set_channel(netIdToChannel(netId), WIFI_SECOND_CHAN_NONE);
 
     if (esp_now_init() != ESP_OK)
     {
-        // Serial.println("[LHRP] ERROR: ESP-NOW init failed!");
         return false;
     }
 
-    // Serial.println("[LHRP] ESP-NOW initialized successfully.");
     esp_now_register_recv_cb(onReceiveStatic);
+
+    // open NVS namespace "lhrp"
+    prefs.begin("lhrp", false);
 
     bool allPeersAdded = true;
 
@@ -67,14 +82,7 @@ bool LHRP_Node_Secure::begin()
     {
         if (!addPeer(p.mac))
         {
-            // Serial.printf("[LHRP] ERROR: Failed to add peer MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
             allPeersAdded = false;
-        }
-        else
-        {
-            // Serial.printf("[LHRP] Peer added successfully: %02X:%02X:%02X:%02X:%02X:%02X\n",
-            //   p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5]);
         }
     }
 
@@ -89,9 +97,6 @@ bool LHRP_Node_Secure::addPeer(const array<uint8_t, 6> &mac)
     peer.encrypt = false;
 
     esp_err_t res = esp_now_add_peer(&peer);
-    // Serial.printf("[LHRP] Adding peer %02X:%02X:%02X:%02X:%02X:%02X... %s\n",
-    //   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-    //   res == ESP_OK ? "SUCCESS" : "FAILURE");
     return res == ESP_OK;
 }
 
@@ -109,31 +114,35 @@ int LHRP_Node_Secure::maxPayloadSize(const Address &destAddress)
 bool LHRP_Node_Secure::send(const Pocket &p)
 {
     uint8_t pin = node.send(p);
-    // Serial.printf("[LHRP] Routing pocket to pin %u\n", pin);
-
     if (pin == LHRP_PIN_ERROR)
     {
-        // Serial.println("[LHRP] ERROR: Invalid routing pin.");
         return false;
     }
 
     if (pin == 0)
     {
-        // Serial.println("[LHRP] Packet is for this node, calling rxCallback.");
         if (rxCallback)
             rxCallback(p);
         return true;
     }
 
-    RawPacket raw = serializePocket(p, netId, key);
-    esp_err_t err = esp_now_send(peers[pin - 1].mac.data(), (uint8_t *)&raw, sizeof(RawPacket));
+    // Determine peer MAC for this pin
+    if (pin - 1 >= peers.size())
+        return false;
+    const array<uint8_t, 6> &peerMac = peers[pin - 1].mac;
 
-    // Serial.printf("[LHRP] Sending packet to peer %u (%02X:%02X:%02X:%02X:%02X:%02X)... %s\n",
-    //   pin,
-    //   peers[pin - 1].mac[0], peers[pin - 1].mac[1], peers[pin - 1].mac[2],
-    //   peers[pin - 1].mac[3], peers[pin - 1].mac[4], peers[pin - 1].mac[5],
-    //   err == ESP_OK ? "SUCCESS" : "FAILURE");
+    // build prefs key and read last send seq
+    string sKey = macToHexKey(peerMac.data(), "s_");
+    uint32_t last = prefs.getUInt(sKey.c_str(), 0);
+    uint32_t seq = last + 1; // simple monotonic increment; wraps naturally at 2^32
 
+    // persist new send seq
+    prefs.putUInt(sKey.c_str(), seq);
+
+    // serialize with seq
+    RawPacket raw = serializePocket(p, netId, this->key, seq);
+
+    esp_err_t err = esp_now_send(peerMac.data(), (uint8_t *)&raw, sizeof(RawPacket));
     return err == ESP_OK;
 }
 
@@ -153,7 +162,6 @@ void LHRP_Node_Secure::onReceive(
 {
     if (len != sizeof(RawPacket))
     {
-        // Serial.println("[LHRP] ERROR: Packet size mismatch.");
         return;
     }
 
@@ -163,10 +171,23 @@ void LHRP_Node_Secure::onReceive(
     Pocket p = deserializePocket(raw, netId, key);
     if (p.errored)
     {
-        // Serial.println("[LHRP] ERROR: Packet decryption/deserialization failed.");
         return;
     }
 
-    // Serial.println("[LHRP] Packet deserialized successfully, routing...");
+    // Replay check: use sender MAC (esp-now mac) to index persisted last seen sequence
+    string rKey = macToHexKey(mac, "r_");
+    uint32_t lastSeen = prefs.getUInt(rKey.c_str(), 0);
+
+    // If received sequence is <= last seen, it's a replay
+    if (p.seq <= lastSeen)
+    {
+        // drop packet
+        return;
+    }
+
+    // Update persisted last seen seq
+    prefs.putUInt(rKey.c_str(), p.seq);
+
+    // Route packet (may be for this node or forwarded)
     send(p);
 }

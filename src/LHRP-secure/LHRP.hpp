@@ -4,9 +4,11 @@
 #include <array>
 #include <initializer_list>
 #include <functional>
+#include <string>
 
 #include <WiFi.h>
 #include <esp_now.h>
+#include <Preferences.h>
 
 #include "protocol.hpp"
 #include "raw-packet.hpp"
@@ -50,4 +52,10 @@ private:
     std::function<void(const Pocket &)> rxCallback;
 
     bool addPeer(const array<uint8_t, 6> &mac);
+
+    // Persistence (NVS)
+    Preferences prefs;
+
+    // helpers
+    static string macToHexKey(const uint8_t *mac, const char *prefix);
 };

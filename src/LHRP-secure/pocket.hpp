@@ -21,4 +21,5 @@ struct Pocket
     Address srcAddress;
     vector<uint8_t> payload;
     bool errored;
+    uint32_t seq; // neu: Sequenznummer (32-bit), wird beim Deserialisieren gesetzt
 };
