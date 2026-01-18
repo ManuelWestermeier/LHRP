@@ -21,10 +21,10 @@ struct RawPacket
 {
     uint8_t netId;
     uint8_t lengths;
-    uint16_t dataLen; // actual bytes encrypted in rawData
+    uint8_t dataLen; // actual bytes encrypted in rawData
     uint8_t iv[12];
     uint8_t tag[16];
-    uint8_t rawData[250 - 1 - 1 - 2 - 12 - 16];
+    uint8_t rawData[250 - 1 - 1 - 1 - 12 - 16];
 };
 
 /* ============================================================
