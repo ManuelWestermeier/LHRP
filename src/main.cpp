@@ -49,6 +49,9 @@ void setup()
   delay(1000);
 
   net.onPocketReceive([&](const Pocket &pocket) { // handle received pocket
+    if (pocket.errored)
+      return;
+
     blink();
     Serial.println("Received pocket for Address:");
     Serial.println(pocket.destAddress.size());
@@ -56,7 +59,6 @@ void setup()
     Serial.println(pocket.payload.size());
     if (!pocket.payload.empty())
     {
-      analogWrite(LED_BUILTIN, pocket.payload[0]);
       analogWrite(LED_BUILTIN, pocket.payload[0]);
       Serial.println("LED brightness set to " + String(pocket.payload[0]));
     }
@@ -84,11 +86,13 @@ void loop()
       break;
     }
 
-    std::vector<uint8_t> payload = {(uint8_t)random(255)};
+    static std::vector<uint8_t> payload = {200};
     for (int i = 0; i < net.maxPayloadSize(destAddress) - 1; i++)
     {
       payload.push_back(0);
     }
+    payload[0] += 20; // everytime increment by 20
+
     Serial.println(net.send(destAddress, payload) ? "Send" : "Error Sending");
   }
   delay(1000);

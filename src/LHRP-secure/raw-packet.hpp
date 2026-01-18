@@ -25,11 +25,6 @@ struct RawPacket
     uint8_t rawData[250 - 1 - 1 - 2 - 12 - 16];
 };
 
-/* ============================================================
-   Replay protection (64 × 16 bytes = 1024 bytes)
-   ============================================================ */
-inline uint8_t ReplayProtectionBuffer[16 * 64];
-
 inline bool secureCompare(const uint8_t *a, const uint8_t *b, size_t len)
 {
     uint8_t diff = 0;
@@ -37,19 +32,6 @@ inline bool secureCompare(const uint8_t *a, const uint8_t *b, size_t len)
         diff |= a[i] ^ b[i];
     return diff == 0;
 }
-
-inline bool replaySeen(const uint8_t tag[16])
-{
-    uint8_t index = tag[0] & 0x3F;
-    return secureCompare(&ReplayProtectionBuffer[index * 16], tag, 16);
-}
-
-inline void replayStore(const uint8_t tag[16])
-{
-    uint8_t index = tag[0] & 0x3F;
-    memcpy(&ReplayProtectionBuffer[index * 16], tag, 16);
-}
-
 /* ============================================================
    AES-GCM helpers with debug prints
    ============================================================ */
@@ -198,14 +180,6 @@ inline Pocket deserializePocket(const RawPacket &r, uint8_t expectedNetId, const
         p.errored = true;
         return p;
     }
-
-    if (replaySeen(tmp.tag))
-    {
-        // Serial.println("[Deserialize] Replay detected!");
-        p.errored = true;
-        return p;
-    }
-    replayStore(tmp.tag);
 
     size_t offset = 0;
     for (uint8_t i = 0; i < destLen; i++)
