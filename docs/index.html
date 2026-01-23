@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LHRP Tree Simulator — Self-contained (mit Zwischenverbindungen)</title>
+    <style>
+        :root {
+            --bg: #0f1724;
+            --panel: #0b1220;
+            --card: #0f1a2b;
+            --accent: #38bdf8;
+            --muted: #9aa7b2;
+            --ok: #86efac;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Inter, Segoe UI, Helvetica, Arial;
+            background: linear-gradient(180deg, #071129 0%, #071827 100%);
+            color: #e6eef6
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 14px;
+            padding: 16px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, var(--panel), #06101a);
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 6px 18px rgba(2, 6, 23, .6);
+            overflow: auto
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 6px 0 12px 0;
+            color: var(--accent);
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 10px
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, .06);
+            background: rgba(255, 255, 255, .02);
+            color: inherit;
+            box-sizing: border-box
+        }
+
+        button {
+            margin-top: 8px;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 0;
+            background: var(--accent);
+            color: #04273a;
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        .small-btn {
+            width: auto;
+            padding: 6px 10px;
+            margin-right: 6px;
+            background: #1f2b3a;
+            color: var(--ok);
+            border: 1px solid rgba(255, 255, 255, .03);
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px
+        }
+
+        .meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px
+        }
+
+        .svg-wrap {
+            background: linear-gradient(180deg, #071827 0%, #01111a 100%);
+            margin: 12px;
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, .6)
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 8px
+        }
+
+        .node {
+            cursor: pointer;
+        }
+
+        .node circle {
+            fill: #0b4a6f;
+            stroke: #071827;
+            stroke-width: 1.5px;
+        }
+
+        .node text {
+            font-size: 12px;
+            fill: #e6eef6;
+            pointer-events: none;
+        }
+
+        .edge {
+            stroke: rgba(255, 255, 255, 0.06);
+            stroke-width: 2;
+            stroke-linecap: round
+        }
+
+        .extra-edge {
+            stroke: rgba(120, 140, 160, 0.18);
+            stroke-width: 1.6;
+            stroke-dasharray: 5 6;
+            stroke-linecap: round;
+        }
+
+        .highlight circle {
+            fill: var(--accent);
+        }
+
+        .selected circle {
+            fill: #86efac;
+        }
+
+        .start circle {
+            stroke: var(--ok);
+            stroke-width: 3
+        }
+
+        .end circle {
+            stroke: var(--accent);
+            stroke-width: 3
+        }
+
+        .controls-group {
+            margin-top: 12px;
+            padding: 8px;
+            background: rgba(255, 255, 255, .01);
+            border-radius: 8px
+        }
+
+        .saved-list {
+            max-height: 120px;
+            overflow: auto;
+            margin-top: 8px
+        }
+
+        .node-list {
+            max-height: 140px;
+            overflow: auto;
+            border-radius: 6px;
+            margin-top: 8px;
+            padding: 6px;
+            background: rgba(255, 255, 255, .01)
+        }
+
+        .node-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, .02)
+        }
+
+        .node-item:last-child {
+            border-bottom: 0
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 12px
+        }
+
+        footer {
+            position: fixed;
+            left: 16px;
+            bottom: 12px;
+            font-size: 12px;
+            color: var(--muted)
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="panel" id="leftPanel">
+            <h1>LHRP Tree Simulator</h1>
+
+            <div class="controls-group">
+                <label>Generiere zufälligen Baum</label>
+                <input id="randCount" type="number" min="2" max="500" value="20" />
+                <label style="margin-top:8px">Anzahl zufälliger Zwischenverbindungen</label>
+                <input id="randExtras" type="number" min="0" max="2000" value="10" />
+                <div class="controls-row">
+                    <button id="genRand">Generieren</button>
+                    <button id="genRadQuick" class="small-btn">Schnell (10/5)</button>
+                    <button id="genRadLarge" class="small-btn">Groß (100/50)</button>
+                </div>
+                <div class="meta">Erstellt einen zufälligen Baum und zusätzliche ungerichtete Verbindungen.</div>
+            </div>
+
+            <div class="controls-group">
+                <label>Manuelle Bearbeitung</label>
+                <div class="controls-row">
+                    <select id="selectedNodeSelect"></select>
+                    <button id="addChild" class="small-btn">Kind hinzufügen</button>
+                    <button id="removeNode" class="small-btn">Knoten löschen</button>
+                </div>
+                <div class="meta">Wähle einen Knoten aus, um Kinder hinzuzufügen oder zu entfernen.</div>
+            </div>
+
+            <div class="controls-group">
+                <label>Simulation</label>
+                <div style="display:flex;gap:8px">
+                    <select id="startNode"></select>
+                    <select id="endNode"></select>
+                </div>
+                <div class="controls-row">
+                    <button id="simulate">Simuliere Bewegung</button>
+                    <button id="stopSim" class="small-btn">Stop</button>
+                </div>
+                <div class="meta">Bewegung hebt nacheinander jeden Knoten im Pfad hervor (Intervall 2s). Pfad nutzt
+                    Baum- und Zwischenverbindungen (kürzester Pfad, BFS).</div>
+            </div>
+
+            <div class="controls-group">
+                <label>Speichern / Laden</label>
+                <input id="saveName" type="text" placeholder="Name für gespeicherten Baum" />
+                <div class="controls-row">
+                    <button id="saveTree">Speichern</button>
+                    <button id="exportTree" class="small-btn">Export JSON</button>
+                </div>
+                <div class="saved-list" id="savedList"></div>
+                <div class="meta">Bäume (+ Extras) werden im lokalen Speicher (localStorage) abgelegt.</div>
+            </div>
+
+            <div class="controls-group">
+                <label>Info</label>
+                <div class="muted">Knoten: <span id="nodeCount">0</span></div>
+                <div class="muted">Baum-Kanten: <span id="edgeCount">0</span> · Extra-Kanten: <span
+                        id="extraEdgeCount">0</span></div>
+            </div>
+
+            <div class="controls-group">
+                <label>Aktuelle Knotenliste</label>
+                <div class="node-list" id="nodeList"></div>
+            </div>
+
+        </div>
+
+        <div style="display:flex;flex-direction:column">
+            <div style="flex:1; min-height:220px" class="svg-wrap">
+                <svg id="svgArea" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+            <div style="margin:12px 8px 0 8px; color:var(--muted); font-size:13px">
+                Klicke Knoten im Diagramm, um sie auszuwählen (für Start/End/Manual).
+            </div>
+        </div>
+    </div>
+
+    <footer>Selbst-enthaltende HTML-Datei — Baum + zufällige Zwischenverbindungen, Speicherung & sequentielle
+        Hervorhebung (2s)</footer>
+
+    <script>
+        /* -------------------------
+           Datenmodell & Utility
+           ------------------------- */
+        (function () {
+            // global state
+            let state = {
+                nodes: [],      // [{id, parent: -1 or id, children:[], x,y,depth}]
+                root: null,
+                svgW: 1600, svgH: 900,
+                selectedNode: null,
+                simInterval: null,
+                savedTreesKey: "lhrp_trees_v1",
+                extraEdges: []  // [{a,b}]
+            };
+
+            // DOM refs
+            const svg = document.getElementById('svgArea');
+            const nodeCountEl = document.getElementById('nodeCount');
+            const edgeCountEl = document.getElementById('edgeCount');
+            const extraEdgeCountEl = document.getElementById('extraEdgeCount');
+            const nodeListEl = document.getElementById('nodeList');
+            const savedListEl = document.getElementById('savedList');
+            const selectedNodeSelect = document.getElementById('selectedNodeSelect');
+            const startNodeSelect = document.getElementById('startNode');
+            const endNodeSelect = document.getElementById('endNode');
+            const randCountInput = document.getElementById('randCount');
+            const randExtrasInput = document.getElementById('randExtras');
+
+            // helpers
+            function uid(n) { return "n" + n; }
+            function clearSVG() { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+            function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+            /* -------------------------
+               Tree + Extra-Edges generation & editing
+               ------------------------- */
+
+            function generateRandomTree(n, extraCount) {
+                if (n < 2) n = 2;
+                extraCount = Math.max(0, Math.floor(extraCount || 0));
+                // parent[0] = -1 (root)
+                const parent = new Array(n).fill(-1);
+                for (let i = 1; i < n; i++) {
+                    // choose a parent among 0..i-1 to guarantee a tree
+                    parent[i] = Math.floor(Math.random() * i);
+                }
+                buildFromParentArrayWithExtras(parent, extraCount);
+            }
+
+            function buildFromParentArrayWithExtras(parent, extraCount) {
+                const n = parent.length;
+                state.nodes = [];
+                for (let i = 0; i < n; i++) {
+                    state.nodes.push({ id: i, parent: parent[i] ?? -1, children: [], x: 0, y: 0, depth: 0 });
+                }
+                for (let i = 0; i < n; i++) {
+                    const p = state.nodes[i].parent;
+                    if (p != null && p >= 0) {
+                        state.nodes[p].children.push(i);
+                    }
+                }
+                // find root(s) -> choose first node with parent -1
+                state.root = state.nodes.findIndex(nd => nd.parent === -1);
+                if (state.root === -1) state.root = 0;
+
+                // build random extraEdges (undirected), avoid duplicates and tree edges
+                state.extraEdges = [];
+                const used = new Set();
+                // mark existing tree edges so extras don't duplicate them (undirected)
+                for (let i = 0; i < n; i++) {
+                    const p = state.nodes[i].parent;
+                    if (p >= 0) {
+                        const key = edgeKey(p, i);
+                        used.add(key);
+                    }
+                }
+                // produce extraCount extras
+                let attempts = 0;
+                while (state.extraEdges.length < extraCount && attempts < extraCount * 6) {
+                    attempts++;
+                    const a = Math.floor(Math.random() * n);
+                    const b = Math.floor(Math.random() * n);
+                    if (a === b) continue;
+                    const key = edgeKey(Math.min(a, b), Math.max(a, b));
+                    if (used.has(key)) continue;
+                    used.add(key);
+                    state.extraEdges.push({ a: a, b: b });
+                }
+
+                computeLayout();
+                render();
+            }
+
+            function edgeKey(a, b) {
+                return a + ":" + b;
+            }
+
+            function addChildTo(nodeId) {
+                const newId = state.nodes.length;
+                state.nodes.push({ id: newId, parent: nodeId, children: [], x: 0, y: 0, depth: 0 });
+                state.nodes[nodeId].children.push(newId);
+                computeLayout();
+                render();
+            }
+
+            function removeNode(nodeId) {
+                // cannot remove root easily; if removing root, reparent children to -1
+                if (nodeId < 0 || nodeId >= state.nodes.length) return;
+                // reparent children to parent of removed
+                const parent = state.nodes[nodeId].parent;
+                const children = state.nodes[nodeId].children.slice();
+                children.forEach(child => {
+                    state.nodes[child].parent = parent;
+                    if (parent >= 0) state.nodes[parent].children.push(child);
+                });
+                // remove node from parent's children
+                if (parent >= 0) {
+                    state.nodes[parent].children = state.nodes[parent].children.filter(c => c !== nodeId);
+                }
+                // physically remove node and reindex node ids (to simplify)
+                const keep = state.nodes.filter(n => n.id !== nodeId);
+
+                // build mapping old->new
+                const oldToNew = {};
+                let idx = 0;
+                for (let i = 0; i < state.nodes.length; i++) {
+                    if (i === nodeId) continue;
+                    oldToNew[i] = idx++;
+                }
+
+                // remap nodes
+                const newNodes = keep.map(n => {
+                    const newParent = (n.parent === -1) ? -1 : (oldToNew[n.parent] ?? -1);
+                    return { id: null, parent: newParent, children: [], x: 0, y: 0, depth: 0 };
+                });
+
+                // assign ids and rebuild children lists
+                for (let oldIdx in oldToNew) {
+                    const newIdx = oldToNew[oldIdx];
+                    newNodes[newIdx].id = newIdx;
+                }
+                keep.forEach((n) => {
+                    const newIdx = oldToNew[n.id];
+                    if (n.parent >= 0) {
+                        const pnew = oldToNew[n.parent];
+                        newNodes[pnew].children.push(newIdx);
+                    }
+                });
+
+                // remap extraEdges: filter edges touching removed node and remap indices
+                const newExtra = [];
+                state.extraEdges.forEach(e => {
+                    if (e.a === nodeId || e.b === nodeId) return; // drop
+                    const a = oldToNew[e.a];
+                    const b = oldToNew[e.b];
+                    if (a == null || b == null) return;
+                    // avoid duplicates
+                    const k = edgeKey(Math.min(a, b), Math.max(a, b));
+                    // we'll use a temporary set to avoid duplicates below
+                    newExtra.push({ a, b });
+                });
+
+                state.nodes = newNodes;
+                state.extraEdges = dedupeEdges(newExtra);
+                state.root = state.nodes.findIndex(n => n.parent === -1);
+                if (state.root === -1) state.root = 0;
+                computeLayout();
+                render();
+            }
+
+            function dedupeEdges(list) {
+                const set = new Set();
+                const out = [];
+                list.forEach(e => {
+                    const k = edgeKey(Math.min(e.a, e.b), Math.max(e.a, e.b));
+                    if (!set.has(k)) {
+                        set.add(k);
+                        out.push({ a: e.a, b: e.b });
+                    }
+                });
+                return out;
+            }
+
+            /* -------------------------
+               Layout (tidy-like, recursive)
+               ------------------------- */
+
+            function computeLayout() {
+                if (!state.nodes.length) return;
+                // compute depth and subtree sizes via DFS
+                const nodesById = state.nodes;
+                const n = nodesById.length;
+                // ensure children arrays valid
+                for (let i = 0; i < n; i++) nodesById[i].children = nodesById[i].children || [];
+                // compute depth
+                function setDepth(id, d) {
+                    nodesById[id].depth = d;
+                    nodesById[id].children.forEach(c => setDepth(c, d + 1));
+                }
+                setDepth(state.root, 0);
+                // compute subtree size
+                function subtreeSize(id) {
+                    let size = 1;
+                    nodesById[id].children.forEach(c => size += subtreeSize(c));
+                    nodesById[id]._sub = size;
+                    return size;
+                }
+                subtreeSize(state.root);
+                // assign x positions by inorder traversal proportional to subtree sizes
+                let cursor = 40; // padding
+                const levelHeight = Math.max(100, Math.floor(state.svgH / (maxDepth() + 2)));
+                function assign(id, depth) {
+                    const node = nodesById[id];
+                    const left = cursor;
+                    if (node.children.length === 0) {
+                        node.x = cursor;
+                        cursor += 120;
+                    } else {
+                        node.children.forEach(c => assign(c, depth + 1));
+                        // x = average of children
+                        const first = nodesById[node.children[0]];
+                        const last = nodesById[node.children[node.children.length - 1]];
+                        node.x = (first.x + last.x) / 2;
+                    }
+                    node.y = 60 + depth * levelHeight;
+                }
+                assign(state.root, 0);
+
+                // clamp to svg width
+                const minX = Math.min(...nodesById.map(n => n.x));
+                const maxX = Math.max(...nodesById.map(n => n.x));
+                const span = Math.max(1, maxX - minX);
+                const leftPad = 40, rightPad = 80;
+                const avail = state.svgW - leftPad - rightPad;
+                nodesById.forEach(n => {
+                    n.x = leftPad + ((n.x - minX) / span) * avail;
+                });
+            }
+
+            function maxDepth() {
+                let m = 0;
+                state.nodes.forEach(n => m = Math.max(m, n.depth || 0));
+                return m;
+            }
+
+            /* -------------------------
+               SVG Rendering
+               ------------------------- */
+
+            function render() {
+                clearSVG();
+                const nodes = state.nodes;
+                nodeCountEl.textContent = nodes.length;
+                let treeEdgeCount = 0;
+                // edges below nodes (tree edges)
+                const gEdges = svgAppend('g', svg);
+                gEdges.setAttribute('class', 'edges');
+                nodes.forEach(n => {
+                    if (n.parent !== -1 && nodes[n.parent]) {
+                        treeEdgeCount++;
+                        const p = nodes[n.parent];
+                        const line = svgAppend('line', gEdges);
+                        line.setAttribute('x1', p.x);
+                        line.setAttribute('y1', p.y + 12);
+                        line.setAttribute('x2', n.x);
+                        line.setAttribute('y2', n.y - 12);
+                        line.setAttribute('class', 'edge');
+                        line.style.stroke = 'rgba(255,255,255,0.06)';
+                    }
+                });
+                edgeCountEl.textContent = treeEdgeCount;
+
+                // extra edges (draw under nodes but above tree edges)
+                const gExtra = svgAppend('g', svg);
+                gExtra.setAttribute('class', 'extra-edges');
+                state.extraEdges.forEach(e => {
+                    const a = state.nodes[e.a];
+                    const b = state.nodes[e.b];
+                    if (!a || !b) return;
+                    const line = svgAppend('line', gExtra);
+                    line.setAttribute('x1', a.x);
+                    line.setAttribute('y1', a.y);
+                    line.setAttribute('x2', b.x);
+                    line.setAttribute('y2', b.y);
+                    line.setAttribute('class', 'extra-edge');
+                });
+                extraEdgeCountEl.textContent = state.extraEdges.length;
+
+                // nodes (top)
+                const gNodes = svgAppend('g', svg);
+                gNodes.setAttribute('class', 'nodes');
+
+                nodes.forEach(n => {
+                    const group = svgAppend('g', gNodes);
+                    group.setAttribute('class', 'node');
+                    group.setAttribute('data-id', n.id);
+                    group.style.cursor = 'pointer';
+                    const cx = n.x, cy = n.y;
+                    const circ = svgAppend('circle', group);
+                    circ.setAttribute('cx', cx);
+                    circ.setAttribute('cy', cy);
+                    circ.setAttribute('r', 12);
+
+                    const text = svgAppend('text', group);
+                    text.setAttribute('x', cx);
+                    text.setAttribute('y', cy + 4);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.textContent = String(n.id);
+
+                    // classes for selected/start/end
+                    if (state.selectedNode === n.id) group.classList.add('selected'); else group.classList.remove('selected');
+                    if (parseInt(startNodeSelect.value) === n.id) group.classList.add('start'); else group.classList.remove('start');
+                    if (parseInt(endNodeSelect.value) === n.id) group.classList.add('end'); else group.classList.remove('end');
+
+                    group.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        onNodeClick(n.id);
+                    });
+                });
+
+                rebuildNodeList();
+                rebuildSavedList();
+                rebuildSelects();
+            }
+
+            function svgAppend(tag, parent) { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); parent.appendChild(el); return el; }
+
+            /* -------------------------
+               UI interaction handlers
+               ------------------------- */
+
+            function onNodeClick(id) {
+                state.selectedNode = id;
+                selectedNodeSelect.value = String(id);
+                render();
+            }
+
+            function rebuildNodeList() {
+                nodeListEl.innerHTML = '';
+                state.nodes.forEach(n => {
+                    const div = document.createElement('div');
+                    div.className = 'node-item';
+                    const left = document.createElement('div');
+                    left.innerHTML = '<strong>#' + n.id + '</strong> <span class="muted">depth ' + n.depth + '</span>';
+                    const right = document.createElement('div');
+                    right.innerHTML = '<span class="muted">p:' + (n.parent === -1 ? '-' : n.parent) + '</span>';
+                    div.appendChild(left); div.appendChild(right);
+                    div.addEventListener('click', () => { state.selectedNode = n.id; selectedNodeSelect.value = String(n.id); render(); });
+                    nodeListEl.appendChild(div);
+                });
+            }
+
+            function rebuildSelects() {
+                // selected node select
+                const selOptions = state.nodes.map(n => `<option value="${n.id}">${n.id} (d${n.depth})</option>`).join('');
+                selectedNodeSelect.innerHTML = selOptions;
+                if (state.selectedNode != null) selectedNodeSelect.value = String(state.selectedNode);
+
+                // start/end selects
+                const opts = state.nodes.map(n => `<option value="${n.id}">${n.id}</option>`).join('');
+                startNodeSelect.innerHTML = opts;
+                endNodeSelect.innerHTML = opts;
+
+                // preserve previously selected start/end if possible
+                if (!startNodeSelect.value && state.nodes.length) startNodeSelect.value = "0";
+                if (!endNodeSelect.value && state.nodes.length) endNodeSelect.value = String(Math.max(0, state.nodes.length - 1));
+            }
+
+            /* -------------------------
+               Pathfinding (BFS on graph with extras)
+               ------------------------- */
+
+            function buildAdjacency() {
+                const adj = new Array(state.nodes.length);
+                for (let i = 0; i < state.nodes.length; i++) adj[i] = [];
+                // tree edges (undirected)
+                state.nodes.forEach(n => {
+                    if (n.parent >= 0) {
+                        adj[n.id].push(n.parent);
+                        adj[n.parent].push(n.id);
+                    }
+                });
+                // extra edges (undirected)
+                state.extraEdges.forEach(e => {
+                    if (e.a >= 0 && e.b >= 0 && e.a < state.nodes.length && e.b < state.nodes.length) {
+                        adj[e.a].push(e.b);
+                        adj[e.b].push(e.a);
+                    }
+                });
+                // dedupe adjacency lists
+                for (let i = 0; i < adj.length; i++) {
+                    adj[i] = Array.from(new Set(adj[i]));
+                }
+                return adj;
+            }
+
+            function bfsPath(aId, bId) {
+                if (aId === bId) return [aId];
+                if (aId < 0 || bId < 0 || aId >= state.nodes.length || bId >= state.nodes.length) return [];
+                const adj = buildAdjacency();
+                const q = [aId];
+                const prev = new Array(state.nodes.length).fill(-1);
+                prev[aId] = -2; // root marker
+                let found = false;
+                while (q.length) {
+                    const u = q.shift();
+                    if (u === bId) { found = true; break; }
+                    for (const v of adj[u]) {
+                        if (prev[v] === -1) {
+                            prev[v] = u;
+                            q.push(v);
+                        }
+                    }
+                }
+                if (!found) return [];
+                const path = [];
+                let cur = bId;
+                while (cur !== -2) {
+                    path.push(cur);
+                    cur = prev[cur];
+                }
+                return path.reverse();
+            }
+
+            /* -------------------------
+               Animation (2s per node)
+               ------------------------- */
+
+            function animatePath(path) {
+                stopSimulation();
+                if (!path || path.length === 0) return;
+                let idx = 0;
+                highlightNode(path[idx]);
+                state.simInterval = setInterval(() => {
+                    idx++;
+                    if (idx >= path.length) {
+                        clearInterval(state.simInterval);
+                        state.simInterval = null;
+                        return;
+                    }
+                    highlightNode(path[idx]);
+                }, 2000);
+            }
+
+            function highlightNode(nodeId) {
+                // clear previous highlights
+                const all = svg.querySelectorAll('.highlight');
+                all.forEach(el => el.classList.remove('highlight'));
+                // find node group
+                const g = svg.querySelector('.node[data-id="' + nodeId + '"]');
+                if (g) g.classList.add('highlight');
+            }
+
+            function stopSimulation() {
+                if (state.simInterval) {
+                    clearInterval(state.simInterval);
+                    state.simInterval = null;
+                }
+                // remove highlights
+                const all = svg.querySelectorAll('.highlight');
+                all.forEach(el => el.classList.remove('highlight'));
+            }
+
+            /* -------------------------
+               Persistence (localStorage)
+               ------------------------- */
+
+            function savedTreesLoad() {
+                try {
+                    const raw = localStorage.getItem(state.savedTreesKey);
+                    if (!raw) return {};
+                    return JSON.parse(raw);
+                } catch (e) { return {}; }
+            }
+            function savedTreesSave(map) {
+                localStorage.setItem(state.savedTreesKey, JSON.stringify(map));
+                rebuildSavedList();
+            }
+
+            function saveCurrentTree(name) {
+                if (!name) { alert('Bitte Namen eingeben'); return; }
+                const map = savedTreesLoad();
+                map[name] = {
+                    parent: state.nodes.map(n => n.parent),
+                    extraEdges: state.extraEdges.map(e => ({ a: e.a, b: e.b })),
+                    createdAt: new Date().toISOString()
+                };
+                savedTreesSave(map);
+                alert('Gespeichert: ' + name);
+            }
+
+            function exportCurrentTree() {
+                const obj = {
+                    parent: state.nodes.map(n => n.parent),
+                    extraEdges: state.extraEdges.map(e => ({ a: e.a, b: e.b }))
+                };
+                const txt = JSON.stringify(obj, null, 2);
+                const w = window.open("");
+                w.document.write("<pre>" + escapeHtml(txt) + "</pre>");
+            }
+
+            function rebuildSavedList() {
+                savedListEl.innerHTML = '';
+                const map = savedTreesLoad();
+                const names = Object.keys(map).sort((a, b) => (map[a].createdAt < map[b].createdAt) ? 1 : -1);
+                if (names.length === 0) {
+                    savedListEl.innerHTML = '<div class="muted">Keine gespeicherten Bäume</div>';
+                    return;
+                }
+                names.forEach(name => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex'; item.style.justifyContent = 'space-between'; item.style.alignItems = 'center'; item.style.padding = '6px 4px';
+                    const left = document.createElement('div');
+                    left.innerHTML = `<strong>${name}</strong><div class="muted">${(map[name].parent || []).length} Knoten · ${new Date(map[name].createdAt).toLocaleString()}</div>`;
+                    const right = document.createElement('div');
+                    const loadBtn = document.createElement('button'); loadBtn.textContent = 'Laden'; loadBtn.className = 'small-btn';
+                    loadBtn.addEventListener('click', () => { loadSavedTree(name); });
+                    const delBtn = document.createElement('button'); delBtn.textContent = 'Löschen'; delBtn.className = 'small-btn';
+                    delBtn.addEventListener('click', () => { if (confirm('Löschen?')) { delete map[name]; savedTreesSave(map); } });
+                    right.appendChild(loadBtn); right.appendChild(delBtn);
+                    item.appendChild(left); item.appendChild(right);
+                    savedListEl.appendChild(item);
+                });
+            }
+
+            function loadSavedTree(name) {
+                const map = savedTreesLoad();
+                if (!map[name]) { alert('Nicht gefunden'); return; }
+                const parent = map[name].parent || [];
+                const extras = map[name].extraEdges || [];
+                // reconstruct nodes
+                state.extraEdges = [];
+                buildFromParentArrayWithExtras(parent, 0);
+                // attach extras (filter invalid)
+                extras.forEach(e => {
+                    if (typeof e.a === "number" && typeof e.b === "number" && e.a >= 0 && e.b >= 0 && e.a < parent.length && e.b < parent.length && e.a !== e.b) {
+                        state.extraEdges.push({ a: e.a, b: e.b });
+                    }
+                });
+                state.extraEdges = dedupeEdges(state.extraEdges);
+                computeLayout();
+                render();
+            }
+
+            /* -------------------------
+               Utilities
+               ------------------------- */
+
+            function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+            /* -------------------------
+               Event wiring
+               ------------------------- */
+
+            document.getElementById('genRand').addEventListener('click', () => {
+                const n = parseInt(randCountInput.value) || 20;
+                const e = parseInt(randExtrasInput.value) || 0;
+                generateRandomTree(clamp(n, 2, 500), clamp(e, 0, 2000));
+            });
+            document.getElementById('genRadQuick').addEventListener('click', () => generateRandomTree(10, 5));
+            document.getElementById('genRadLarge').addEventListener('click', () => generateRandomTree(100, 50));
+
+            document.getElementById('addChild').addEventListener('click', () => {
+                const sel = parseInt(selectedNodeSelect.value);
+                if (isNaN(sel)) { alert('Kein Knoten ausgewählt'); return; }
+                addChildTo(sel);
+            });
+
+            document.getElementById('removeNode').addEventListener('click', () => {
+                const sel = parseInt(selectedNodeSelect.value);
+                if (isNaN(sel)) { alert('Kein Knoten ausgewählt'); return; }
+                if (!confirm('Knoten ' + sel + ' löschen?')) return;
+                removeNode(sel);
+            });
+
+            document.getElementById('simulate').addEventListener('click', () => {
+                const a = parseInt(startNodeSelect.value);
+                const b = parseInt(endNodeSelect.value);
+                if (isNaN(a) || isNaN(b)) { alert('Start/End ungültig'); return; }
+                const path = bfsPath(a, b);
+                if (!path || path.length === 0) { alert('Kein Pfad'); return; }
+                animatePath(path);
+            });
+
+            document.getElementById('stopSim').addEventListener('click', () => stopSimulation());
+
+            document.getElementById('saveTree').addEventListener('click', () => {
+                const name = document.getElementById('saveName').value.trim();
+                saveCurrentTree(name);
+            });
+
+            document.getElementById('exportTree').addEventListener('click', () => exportCurrentTree());
+
+            selectedNodeSelect.addEventListener('change', (e) => {
+                state.selectedNode = parseInt(e.target.value);
+                render();
+            });
+
+            // clicking empty svg clears selection
+            svg.addEventListener('click', () => {
+                state.selectedNode = null;
+                selectedNodeSelect.value = '';
+                render();
+            });
+
+            // persist on unload? not necessary; saved manually
+
+            /* -------------------------
+               Bootstrap: initial random tree
+               ------------------------- */
+            generateRandomTree(20, 10);
+
+            // expose for debugging (optional)
+            window.LHRPSim = {
+                state,
+                generateRandomTree,
+                buildFromParentArrayWithExtras,
+                saveCurrentTree,
+                loadSavedTree,
+                exportCurrentTree,
+                animatePath,
+                stopSimulation,
+                bfsPath
+            };
+        })();
+    </script>
+</body>
+
+</html>
