@@ -1,170 +1,236 @@
-# LHRP – Lightweight Hierarchical Routing Protocol
+# LHRP_Node_Secure – Secure Hierarchical Routing over ESP-NOW
 
-LHRP is a lightweight, hierarchical routing protocol for **ESP32**
-based on **ESP-NOW**.  
-It enables forwarding packets (“Pockets”) between nodes using **address prefixes**
-without central coordination.
+## Überblick
 
----
+**LHRP_Node_Secure** ist eine sichere, hierarchische Routing- und Kommunikationsschicht für ESP32-Geräte auf Basis von **ESP-NOW**.  
+Sie implementiert das **LHRP (Lightweight Hierarchical Routing Protocol)** mit:
 
-## Features
+- hierarchischen Adressen
+- automatischem Routing (Parent/Child)
+- **AES-128-GCM Verschlüsselung**
+- **Replay-Schutz mit persistenten Sequenznummern**
+- netzwerkweiter Kanalableitung aus `netId`
+- Speicherung kritischer Zustände in **NVS (Preferences)**
 
-- ESP-NOW based communication (no WiFi AP required)
-- Hierarchical address-based routing
-- Automatic multi-hop forwarding
-- Very low overhead (fixed-size packets)
-- Deterministic routing decisions
-- Suitable for mesh-like embedded networks
+Das System ist vollständig **peer-to-peer**, benötigt keinen Access Point und ist für Mesh-ähnliche Topologien geeignet.
 
 ---
 
-## Core Concepts
+## Eigenschaften
 
-### Address
+- 🔐 **Ende-zu-Ende-Verschlüsselung** (AES-GCM, 128 Bit)
+- 🛡 **Replay-Schutz** (persistente Sequenznummern pro Peer)
+- 🌳 **Hierarchische Adressierung** (Tree / Prefix Routing)
+- 📡 **ESP-NOW-basiert** (kein WiFi-AP notwendig)
+- 💾 **NVS-gesichert** (Sequenzen über Neustarts hinweg gültig)
+- ⚡ **Deterministisches Routing** (Longest Prefix Match)
 
-An address is a vector of `uint8_t` values:
+---
+
+## Architektur
+
+### Adressen
+
+Eine Adresse ist ein Vektor aus Bytes:
 
 ```cpp
-using Address = vector<uint8_t>;
+Address a = {1, 2, 3};
 ```
 
-Examples:
+- Hierarchisch (Prefix-basiert)
+- Elternknoten besitzen kürzere Präfixe
+- Kinder erben das Präfix des Elternknotens
 
-```
-{1}
-{1,1}
-{1,1,1}
-```
+Beispiel:
 
-Longer addresses represent deeper hierarchy levels.
+- `{1}` → Root
+- `{1,2}` → Child
+- `{1,2,7}` → Leaf
 
 ---
 
-### Pocket
+### Routing (Node)
 
-A Pocket represents a logical packet:
+Das Routing basiert auf:
+
+- **Longest Prefix Match**
+- Parent-/Child-Erkennung
+- Fallback-Logik bei fehlenden Routen
+
+Die Entscheidung erfolgt über `Node::send(const Pocket&)` und liefert:
+
+- `0` → lokal zustellen
+- `pin > 0` → Weiterleitung über Peer
+- `LHRP_PIN_ERROR` → keine Route
+
+---
+
+## Sicherheit
+
+### Verschlüsselung
+
+- Algorithmus: **AES-128-GCM**
+- IV: 96 Bit (zufällig)
+- Tag: 128 Bit
+- AAD (authentifiziert, aber unverschlüsselt):
+  - `netId`
+  - `lengths`
+  - `dataLen`
+
+### Replay-Schutz
+
+- Jede Verbindung nutzt eine **monoton steigende Sequenznummer**
+- Gespeichert in NVS:
+  - `s_<MAC>` → letzte gesendete Sequenz
+  - `r_<MAC>` → letzte empfangene Sequenz
+
+- Pakete mit `seq <= lastSeen` werden verworfen
+
+---
+
+## Netzwerk & Kanalwahl
+
+Der WiFi-Kanal wird **deterministisch** aus der `netId` berechnet:
 
 ```cpp
-struct Pocket {
-    Address address;
-    vector<uint8_t> payload;
-};
+channel = (netId * 7 % 13) + 1;
+```
+
+➡ Gleiche `netId` ⇒ gleicher Kanal
+➡ Unterschiedliche Netze interferieren weniger
+
+---
+
+## RawPacket-Format (250 Bytes)
+
+```
+| netId | lengths | dataLen | IV (12) | TAG (16) | encrypted payload |
+```
+
+Payload (verschlüsselt):
+
+```
+| seq (4) | destAddr | srcAddr | payload |
 ```
 
 ---
 
-### Routing Logic
+## Verwendung
 
-Routing is based on:
-
-1. Longest common prefix match
-2. Best positive/negative match index
-3. Child routing rule
-
-Implemented in:
+### Initialisierung
 
 ```cpp
-uint8_t Node::send(const Pocket& p);
+array<uint8_t,16> key = { /* 16-byte AES key */ };
+
+LHRP_Node_Secure node(
+    1,              // netId
+    key,
+    {
+        {macSelf,   {1}},
+        {macPeer1,  {1,2}},
+        {macPeer2,  {1,3}}
+    }
+);
+
+node.begin();
 ```
 
-Return values:
-
-- `0` → packet is for this node
-- `>0` → forward via peer pin
+> **Wichtig:**
+> Der **erste Peer** in der Liste ist immer der **eigene Knoten**.
 
 ---
 
-## LHRP_Node Usage
-
-### Initialization
+### Senden
 
 ```cpp
-LHRP_Node net({
-    { selfMac, myAddress },
-    { peerMac1, peerAddress1 },
-    { peerMac2, peerAddress2 }
+Address dest = {1,2};
+vector<uint8_t> data = {0xAA, 0xBB};
+
+node.send(dest, data);
+```
+
+---
+
+### Empfangen
+
+```cpp
+node.onPocketReceive([](const Pocket& p){
+    // p.srcAddress
+    // p.destAddress
+    // p.payload
 });
 ```
 
-First peer = self, others = connections.
-
 ---
 
-### Start Node
+### Maximale Payload-Größe
 
 ```cpp
-net.begin();
+int maxSize = node.maxPayloadSize(dest);
 ```
 
-Initializes WiFi, ESP-NOW, registers callbacks and peers.
+Abhängig von:
+
+- Adresstiefen
+- RawPacket-Größe
+- AES-GCM Overhead
 
 ---
 
-### Send Packet
+## Speicher (NVS)
 
-```cpp
-net.send(Pocket{ targetAddress, payload });
+Namespace: **`"lhrp"`**
+
+Gespeicherte Keys:
+
+- `s_<MACHEX>` → letzte gesendete Sequenz
+- `r_<MACHEX>` → letzte empfangene Sequenz
+
+Beispiel:
+
 ```
-
-Routing automatically determines the next hop.
-
----
-
-### Receive Packet
-
-```cpp
-net.onPocketReceive([](const Pocket& p){
-    // handle packet
-});
-```
-
----
-
-## ESP-NOW Transport
-
-Packets are sent as fixed-size `RawPacket` structures for speed and efficiency.
-
----
-
-## Example
-
-Random LED brightness is sent between nodes using hierarchical routing.
-
-```cpp
-net.send(Pocket{ node2Address, { random(255) } });
+s_AABBCCDDEEFF
+r_AABBCCDDEEFF
 ```
 
 ---
 
-## Project Structure
+## Abhängigkeiten
 
-```
-LHRP/
-├── src/
-├── LHRP/
-├── platformio.ini
-└── README.md
-```
+- ESP32 Arduino Core
+- `esp_now`
+- `mbedtls`
+- `Preferences`
+- `WiFi`
 
 ---
 
-## Requirements
+## Einschränkungen
 
-- ESP32
-- Arduino framework
-- PlatformIO
-- ESP-NOW enabled
-
----
-
-## Notes
-
-- No encryption enabled
-- Static peer configuration
-- MAC addresses must be known
+- Max. Adresstiefe: **15**
+- Max. RawPacket-Größe: **250 Bytes**
+- AES-Key ist **pre-shared**
+- Kein dynamisches Peer-Discovery
 
 ---
 
-## License
+## Zielgruppe
 
-Creative Common
+- Sichere ESP32-Mesh-Netze
+- Sensornetze
+- Steuerungs- und Aktor-Netze
+- Offline-Kommunikation
+- Embedded Security-Anwendungen
+
+---
+
+## Status
+
+**Produktionsreif**
+Design ist deterministisch, speichersicher und reboot-resistent.
+
+---
+
+#### Disclaimer
+
+Projekt von _Manuel Westermeier_ gecoded, Dokumentation von ChatGPT
