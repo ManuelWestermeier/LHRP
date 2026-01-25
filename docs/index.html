@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>LHRP Tree Simulator — Self-contained (mit Zwischenverbindungen)</title>
+    <title>LHRP Tree Simulator — Korrekte Implementation</title>
     <style>
         :root {
             --bg: #0f1724;
@@ -13,21 +13,23 @@
             --accent: #38bdf8;
             --muted: #9aa7b2;
             --ok: #86efac;
+            --error: #f87171;
         }
 
         html,
         body {
             height: 100%;
             margin: 0;
-            font-family: Inter, Segoe UI, Helvetica, Arial;
+            font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
             background: linear-gradient(180deg, #071129 0%, #071827 100%);
-            color: #e6eef6
+            color: #e6eef6;
+            overflow: hidden;
         }
 
         .app {
             display: grid;
-            grid-template-columns: 360px 1fr;
-            gap: 14px;
+            grid-template-columns: 380px 1fr;
+            gap: 16px;
             padding: 16px;
             height: 100vh;
             box-sizing: border-box;
@@ -35,884 +37,1451 @@
 
         .panel {
             background: linear-gradient(180deg, var(--panel), #06101a);
-            border-radius: 10px;
-            padding: 12px;
-            box-shadow: 0 6px 18px rgba(2, 6, 23, .6);
-            overflow: auto
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(2, 6, 23, .8);
+            overflow: auto;
+            border: 1px solid rgba(255, 255, 255, .05);
         }
 
         h1 {
-            font-size: 18px;
-            margin: 6px 0 12px 0;
+            font-size: 20px;
+            margin: 0 0 16px 0;
             color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .algo-badge {
+            font-size: 12px;
+            background: rgba(56, 189, 248, .15);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, .3);
+        }
+
+        .section {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(255, 255, 255, .02);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, .04);
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         label {
             display: block;
             font-size: 13px;
             color: var(--muted);
-            margin-top: 10px
+            margin: 12px 0 6px 0;
         }
 
         input[type="number"],
         input[type="text"],
         select {
             width: 100%;
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, .06);
-            background: rgba(255, 255, 255, .02);
-            color: inherit;
-            box-sizing: border-box
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            background: rgba(255, 255, 255, .03);
+            color: #e6eef6;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, .1);
         }
 
         button {
-            margin-top: 8px;
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             border: 0;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #0ea5e9);
             color: #04273a;
             font-weight: 700;
-            cursor: pointer
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, .3);
         }
 
         .small-btn {
             width: auto;
-            padding: 6px 10px;
-            margin-right: 6px;
+            padding: 8px 16px;
+            margin: 4px 8px 4px 0;
             background: #1f2b3a;
             color: var(--ok);
-            border: 1px solid rgba(255, 255, 255, .03);
+            border: 1px solid rgba(255, 255, 255, .05);
+            font-size: 13px;
         }
 
         .controls-row {
             display: flex;
             gap: 8px;
             align-items: center;
-            margin-top: 8px
+            margin-top: 12px;
+            flex-wrap: wrap;
         }
 
-        .meta {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 8px
+        .info-box {
+            background: rgba(134, 239, 172, .08);
+            border: 1px solid rgba(134, 239, 172, .15);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: var(--ok);
+        }
+
+        .warning-box {
+            background: rgba(248, 113, 113, .08);
+            border: 1px solid rgba(248, 113, 113, .15);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: var(--error);
         }
 
         .svg-wrap {
             background: linear-gradient(180deg, #071827 0%, #01111a 100%);
-            margin: 12px;
-            border-radius: 10px;
-            padding: 8px;
-            box-shadow: inset 0 0 40px rgba(0, 0, 0, .6)
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, .8);
+            border: 1px solid rgba(255, 255, 255, .05);
+            position: relative;
+            width: 100%;
+            height: 100%;
         }
 
         svg {
             width: 100%;
             height: 100%;
             display: block;
-            border-radius: 8px
         }
 
-        .node {
-            cursor: pointer;
-        }
-
+        /* Node styling */
         .node circle {
             fill: #0b4a6f;
             stroke: #071827;
-            stroke-width: 1.5px;
+            stroke-width: 2;
+            transition: all 0.3s;
+        }
+
+        .node.highlight circle {
+            fill: var(--accent);
+            stroke: #0ea5e9;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, .5));
+        }
+
+        .node.selected circle {
+            fill: var(--ok);
+            stroke: #4ade80;
+        }
+
+        .node.start circle {
+            fill: var(--ok);
+            stroke: #4ade80;
+            stroke-width: 3;
+        }
+
+        .node.end circle {
+            fill: var(--accent);
+            stroke: #0ea5e9;
+            stroke-width: 3;
         }
 
         .node text {
-            font-size: 12px;
+            font-size: 11px;
+            font-weight: 600;
             fill: #e6eef6;
             pointer-events: none;
+            user-select: none;
         }
 
-        .edge {
-            stroke: rgba(255, 255, 255, 0.06);
+        /* Edge styling */
+        .tree-edge {
+            stroke: rgba(56, 189, 248, .4);
             stroke-width: 2;
-            stroke-linecap: round
-        }
-
-        .extra-edge {
-            stroke: rgba(120, 140, 160, 0.18);
-            stroke-width: 1.6;
-            stroke-dasharray: 5 6;
             stroke-linecap: round;
         }
 
-        .highlight circle {
-            fill: var(--accent);
+        .extra-edge {
+            stroke: rgba(134, 239, 172, .3);
+            stroke-width: 1.5;
+            stroke-dasharray: 5 3;
+            stroke-linecap: round;
         }
 
-        .selected circle {
-            fill: #86efac;
-        }
-
-        .start circle {
+        .routing-path {
             stroke: var(--ok);
-            stroke-width: 3
+            stroke-width: 3;
+            stroke-linecap: round;
+            animation: pulse 2s infinite;
         }
 
-        .end circle {
-            stroke: var(--accent);
-            stroke-width: 3
+        @keyframes pulse {
+            0% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.7;
+            }
         }
 
-        .controls-group {
-            margin-top: 12px;
-            padding: 8px;
-            background: rgba(255, 255, 255, .01);
-            border-radius: 8px
+        /* Status panel */
+        .status-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(11, 18, 32, .95);
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            backdrop-filter: blur(10px);
         }
 
-        .saved-list {
-            max-height: 120px;
-            overflow: auto;
-            margin-top: 8px
-        }
-
-        .node-list {
-            max-height: 140px;
-            overflow: auto;
-            border-radius: 6px;
-            margin-top: 8px;
-            padding: 6px;
-            background: rgba(255, 255, 255, .01)
-        }
-
-        .node-item {
+        .status-item {
             display: flex;
             justify-content: space-between;
-            padding: 6px 4px;
-            border-bottom: 1px solid rgba(255, 255, 255, .02)
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, .05);
         }
 
-        .node-item:last-child {
-            border-bottom: 0
+        .status-item:last-child {
+            border-bottom: none;
         }
 
-        .muted {
+        .status-label {
             color: var(--muted);
-            font-size: 12px
+            font-size: 13px;
         }
 
-        footer {
-            position: fixed;
-            left: 16px;
-            bottom: 12px;
-            font-size: 12px;
-            color: var(--muted)
+        .status-value {
+            color: #e6eef6;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .log-box {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, .3);
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: var(--muted);
+            margin-right: 8px;
+        }
+
+        .log-node {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .log-action {
+            color: var(--ok);
+        }
+
+        .log-error {
+            color: var(--error);
+        }
+
+        /* Tree control buttons */
+        .tree-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .tree-btn {
+            background: rgba(11, 18, 32, .9);
+            border: 1px solid rgba(255, 255, 255, .1);
+            color: #e6eef6;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tree-btn:hover {
+            background: rgba(56, 189, 248, .2);
+            border-color: var(--accent);
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
     <div class="app">
-        <div class="panel" id="leftPanel">
-            <h1>LHRP Tree Simulator</h1>
+        <div class="panel">
+            <h1>
+                <i class="fas fa-project-diagram"></i>
+                LHRP Tree Simulator
+                <span class="algo-badge">Korrekte Implementation</span>
+            </h1>
 
-            <div class="controls-group">
-                <label>Generiere zufälligen Baum</label>
-                <input id="randCount" type="number" min="2" max="500" value="20" />
-                <label style="margin-top:8px">Anzahl zufälliger Zwischenverbindungen</label>
-                <input id="randExtras" type="number" min="0" max="2000" value="10" />
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-tree"></i>
+                    Baum Generierung
+                </div>
+                <label>Anzahl Knoten</label>
+                <input id="nodeCount" type="number" min="2" max="100" value="15">
+
+                <label>Extra-Verbindungen</label>
+                <input id="extraEdges" type="number" min="0" max="50" value="5">
+
+                <label>Maximale Tiefe</label>
+                <input id="maxDepth" type="number" min="2" max="8" value="4">
+
                 <div class="controls-row">
-                    <button id="genRand">Generieren</button>
-                    <button id="genRadQuick" class="small-btn">Schnell (10/5)</button>
-                    <button id="genRadLarge" class="small-btn">Groß (100/50)</button>
+                    <button id="generateTree" class="small-btn">
+                        <i class="fas fa-random"></i> Generieren
+                    </button>
+                    <button id="generateBalanced" class="small-btn">
+                        <i class="fas fa-sitemap"></i> Balanciert
+                    </button>
+                    <button id="centerTree" class="small-btn">
+                        <i class="fas fa-expand-alt"></i> Zentrieren
+                    </button>
                 </div>
-                <div class="meta">Erstellt einen zufälligen Baum und zusätzliche ungerichtete Verbindungen.</div>
             </div>
 
-            <div class="controls-group">
-                <label>Manuelle Bearbeitung</label>
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-cogs"></i>
+                    LHRP Simulation
+                </div>
+
+                <label>Start Knoten (Sender)</label>
+                <select id="startNode"></select>
+
+                <label>Ziel Knoten (Empfänger)</label>
+                <select id="endNode"></select>
+
+                <label>Paket Inhalt</label>
+                <input id="packetContent" type="text" value="Hello LHRP!" placeholder="Nachricht">
+
                 <div class="controls-row">
-                    <select id="selectedNodeSelect"></select>
-                    <button id="addChild" class="small-btn">Kind hinzufügen</button>
-                    <button id="removeNode" class="small-btn">Knoten löschen</button>
+                    <button id="simulateLHRP">
+                        <i class="fas fa-play"></i> LHRP Simulation starten
+                    </button>
+                    <button id="stopSimulation" class="small-btn">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
                 </div>
-                <div class="meta">Wähle einen Knoten aus, um Kinder hinzuzufügen oder zu entfernen.</div>
+
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    Simuliert den echten LHRP-Routing-Algorithmus mit Prefix-Matching
+                </div>
             </div>
 
-            <div class="controls-group">
-                <label>Simulation</label>
-                <div style="display:flex;gap:8px">
-                    <select id="startNode"></select>
-                    <select id="endNode"></select>
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-edit"></i>
+                    Manuelle Bearbeitung
                 </div>
+
+                <label>Aktueller Knoten</label>
+                <select id="currentNode"></select>
+
                 <div class="controls-row">
-                    <button id="simulate">Simuliere Bewegung</button>
-                    <button id="stopSim" class="small-btn">Stop</button>
+                    <button id="addNode" class="small-btn">
+                        <i class="fas fa-plus"></i> Kind hinzufügen
+                    </button>
+                    <button id="removeNode" class="small-btn">
+                        <i class="fas fa-trash"></i> Löschen
+                    </button>
+                    <button id="addExtraEdge" class="small-btn">
+                        <i class="fas fa-link"></i> Extra-Verbindung
+                    </button>
                 </div>
-                <div class="meta">Bewegung hebt nacheinander jeden Knoten im Pfad hervor (Intervall 2s). Pfad nutzt
-                    Baum- und Zwischenverbindungen (kürzester Pfad, BFS).</div>
             </div>
 
-            <div class="controls-group">
-                <label>Speichern / Laden</label>
-                <input id="saveName" type="text" placeholder="Name für gespeicherten Baum" />
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-save"></i>
+                    Speichern & Laden
+                </div>
+
+                <input id="saveName" type="text" placeholder="Name für Konfiguration">
+
                 <div class="controls-row">
-                    <button id="saveTree">Speichern</button>
-                    <button id="exportTree" class="small-btn">Export JSON</button>
+                    <button id="saveConfig" class="small-btn">
+                        <i class="fas fa-save"></i> Speichern
+                    </button>
+                    <button id="loadConfig" class="small-btn">
+                        <i class="fas fa-folder-open"></i> Laden
+                    </button>
+                    <button id="exportJSON" class="small-btn">
+                        <i class="fas fa-file-export"></i> Export
+                    </button>
                 </div>
-                <div class="saved-list" id="savedList"></div>
-                <div class="meta">Bäume (+ Extras) werden im lokalen Speicher (localStorage) abgelegt.</div>
+
+                <div id="savedConfigs" class="log-box" style="max-height: 120px;"></div>
             </div>
 
-            <div class="controls-group">
-                <label>Info</label>
-                <div class="muted">Knoten: <span id="nodeCount">0</span></div>
-                <div class="muted">Baum-Kanten: <span id="edgeCount">0</span> · Extra-Kanten: <span
-                        id="extraEdgeCount">0</span></div>
-            </div>
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-list"></i>
+                    LHRP Algorithmus Info
+                </div>
 
-            <div class="controls-group">
-                <label>Aktuelle Knotenliste</label>
-                <div class="node-list" id="nodeList"></div>
-            </div>
+                <div class="warning-box">
+                    <strong>Korrekte LHRP-Logik:</strong><br>
+                    1. Prefix-Matching (positive/negative scores)<br>
+                    2. Lokale Entscheidung an jedem Knoten<br>
+                    3. Kein globaler Pfad vorberechnet<br>
+                    4. Child/Parent Routing Regeln
+                </div>
 
+                <div class="status-item">
+                    <span class="status-label">Aktuelle Knoten:</span>
+                    <span class="status-value" id="currentNodeCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Tree Edges:</span>
+                    <span class="status-value" id="treeEdgeCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Extra Edges:</span>
+                    <span class="status-value" id="extraEdgeCount">0</span>
+                </div>
+            </div>
         </div>
 
-        <div style="display:flex;flex-direction:column">
-            <div style="flex:1; min-height:220px" class="svg-wrap">
-                <svg id="svgArea" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="svg-wrap">
+            <svg id="treeSVG"></svg>
+
+            <div class="tree-controls">
+                <button class="tree-btn" id="zoomIn">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+                <button class="tree-btn" id="zoomOut">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <button class="tree-btn" id="resetView">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
             </div>
-            <div style="margin:12px 8px 0 8px; color:var(--muted); font-size:13px">
-                Klicke Knoten im Diagramm, um sie auszuwählen (für Start/End/Manual).
+
+            <div class="status-panel">
+                <div class="section-title" style="margin-bottom: 8px;">
+                    <i class="fas fa-terminal"></i>
+                    LHRP Routing Log
+                </div>
+                <div id="routingLog" class="log-box"></div>
             </div>
         </div>
     </div>
 
     <script>
-        /* -------------------------
-           Datenmodell & Utility
-           ------------------------- */
-        (function () {
-            // global state
-            let state = {
-                nodes: [],      // [{id, parent: -1 or id, children:[], x,y,depth}]
-                root: null,
-                svgW: 1600, svgH: 900,
-                selectedNode: null,
-                simInterval: null,
-                savedTreesKey: "lhrp_trees_v1",
-                extraEdges: []  // [{a,b}]
-            };
-
-            // DOM refs
-            const svg = document.getElementById('svgArea');
-            const nodeCountEl = document.getElementById('nodeCount');
-            const edgeCountEl = document.getElementById('edgeCount');
-            const extraEdgeCountEl = document.getElementById('extraEdgeCount');
-            const nodeListEl = document.getElementById('nodeList');
-            const savedListEl = document.getElementById('savedList');
-            const selectedNodeSelect = document.getElementById('selectedNodeSelect');
-            const startNodeSelect = document.getElementById('startNode');
-            const endNodeSelect = document.getElementById('endNode');
-            const randCountInput = document.getElementById('randCount');
-            const randExtrasInput = document.getElementById('randExtras');
-
-            // helpers
-            function uid(n) { return "n" + n; }
-            function clearSVG() { while (svg.firstChild) svg.removeChild(svg.firstChild); }
-            function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-            /* -------------------------
-               Tree + Extra-Edges generation & editing
-               ------------------------- */
-
-            function generateRandomTree(n, extraCount) {
-                if (n < 2) n = 2;
-                extraCount = Math.max(0, Math.floor(extraCount || 0));
-                // parent[0] = -1 (root)
-                const parent = new Array(n).fill(-1);
-                for (let i = 1; i < n; i++) {
-                    // choose a parent among 0..i-1 to guarantee a tree
-                    parent[i] = Math.floor(Math.random() * i);
-                }
-                buildFromParentArrayWithExtras(parent, extraCount);
+        class LHRPNode {
+            constructor(id, address = []) {
+                this.id = id;
+                this.address = address;
+                this.parent = null;
+                this.children = [];
+                this.extraConnections = [];
+                this.x = 0;
+                this.y = 0;
+                this.level = address.length;
+                this.width = 0; // For layout calculations
             }
 
-            function buildFromParentArrayWithExtras(parent, extraCount) {
-                const n = parent.length;
-                state.nodes = [];
-                for (let i = 0; i < n; i++) {
-                    state.nodes.push({ id: i, parent: parent[i] ?? -1, children: [], x: 0, y: 0, depth: 0 });
+            getConnectionScore(targetAddress) {
+                const minLen = Math.min(this.address.length, targetAddress.length);
+                let positive = 0;
+
+                while (positive < minLen &&
+                    this.address[positive] === targetAddress[positive]) {
+                    positive++;
                 }
-                for (let i = 0; i < n; i++) {
-                    const p = state.nodes[i].parent;
-                    if (p != null && p >= 0) {
-                        state.nodes[p].children.push(i);
+
+                const negative = this.address.length - positive;
+                return { positive, negative, index: positive - negative };
+            }
+
+            isChildOf(otherAddress) {
+                if (this.address.length <= otherAddress.length) return false;
+                for (let i = 0; i < otherAddress.length; i++) {
+                    if (this.address[i] !== otherAddress[i]) return false;
+                }
+                return true;
+            }
+        }
+
+        class LHRPSimulator {
+            constructor() {
+                this.nodes = [];
+                this.root = null;
+                this.selectedNode = null;
+                this.startNode = null;
+                this.endNode = null;
+                this.running = false;
+                this.logEntries = [];
+                this.svg = document.getElementById('treeSVG');
+                this.nodeCountEl = document.getElementById('currentNodeCount');
+                this.treeEdgeCountEl = document.getElementById('treeEdgeCount');
+                this.extraEdgeCountEl = document.getElementById('extraEdgeCount');
+                this.routingLogEl = document.getElementById('routingLog');
+                this.savedConfigsEl = document.getElementById('savedConfigs');
+
+                // Viewport settings
+                this.viewport = {
+                    x: 0,
+                    y: 0,
+                    scale: 1,
+                    width: 1200,
+                    height: 800
+                };
+
+                this.init();
+            }
+
+            init() {
+                // Event Listeners
+                document.getElementById('generateTree').addEventListener('click', () => this.generateRandomTree());
+                document.getElementById('generateBalanced').addEventListener('click', () => this.generateBalancedTree());
+                document.getElementById('centerTree').addEventListener('click', () => this.centerTree());
+                document.getElementById('simulateLHRP').addEventListener('click', () => this.simulateLHRP());
+                document.getElementById('stopSimulation').addEventListener('click', () => this.stopSimulation());
+                document.getElementById('addNode').addEventListener('click', () => this.addNode());
+                document.getElementById('removeNode').addEventListener('click', () => this.removeNode());
+                document.getElementById('addExtraEdge').addEventListener('click', () => this.addExtraEdge());
+                document.getElementById('saveConfig').addEventListener('click', () => this.saveConfig());
+                document.getElementById('loadConfig').addEventListener('click', () => this.loadConfig());
+                document.getElementById('exportJSON').addEventListener('click', () => this.exportJSON());
+
+                // Zoom controls
+                document.getElementById('zoomIn').addEventListener('click', () => this.zoom(1.2));
+                document.getElementById('zoomOut').addEventListener('click', () => this.zoom(0.8));
+                document.getElementById('resetView').addEventListener('click', () => this.resetView());
+
+                // SVG pan and zoom
+                this.svg.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom(delta);
+                });
+
+                let isPanning = false;
+                let startX, startY;
+
+                this.svg.addEventListener('mousedown', (e) => {
+                    isPanning = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    this.svg.style.cursor = 'grabbing';
+                });
+
+                this.svg.addEventListener('mousemove', (e) => {
+                    if (!isPanning) return;
+                    const dx = (e.clientX - startX) / this.viewport.scale;
+                    const dy = (e.clientY - startY) / this.viewport.scale;
+                    this.viewport.x -= dx;
+                    this.viewport.y -= dy;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    this.updateViewport();
+                });
+
+                this.svg.addEventListener('mouseup', () => {
+                    isPanning = false;
+                    this.svg.style.cursor = 'default';
+                });
+
+                this.svg.addEventListener('mouseleave', () => {
+                    isPanning = false;
+                    this.svg.style.cursor = 'default';
+                });
+
+                // Initial tree
+                this.generateBalancedTree();
+                this.loadSavedConfigs();
+                this.updateViewport();
+            }
+
+            generateRandomTree() {
+                const nodeCount = parseInt(document.getElementById('nodeCount').value) || 15;
+                const extraCount = parseInt(document.getElementById('extraEdges').value) || 5;
+                const maxDepth = parseInt(document.getElementById('maxDepth').value) || 4;
+
+                this.nodes = [];
+                this.root = new LHRPNode(0, [0]);
+                this.nodes.push(this.root);
+
+                // Generate tree nodes with limited depth
+                for (let i = 1; i < nodeCount; i++) {
+                    // Filter nodes that haven't reached max depth
+                    const availableParents = this.nodes.filter(n =>
+                        n.level < maxDepth - 1 && n.children.length < 4
+                    );
+
+                    if (availableParents.length === 0) break;
+
+                    const parent = availableParents[Math.floor(Math.random() * availableParents.length)];
+                    const address = [...parent.address, parent.children.length];
+                    const node = new LHRPNode(i, address);
+                    node.parent = parent.id;
+                    parent.children.push(i);
+                    this.nodes.push(node);
+                }
+
+                // Generate extra connections
+                this.generateExtraEdges(extraCount);
+
+                this.layoutTree();
+                this.render();
+                this.updateUI();
+                this.centerTree();
+            }
+
+            generateBalancedTree() {
+                this.nodes = [];
+                this.root = new LHRPNode(0, [0]);
+                this.nodes.push(this.root);
+
+                const maxDepth = 4;
+                const branchingFactor = 3;
+                let nextId = 1;
+
+                // Create balanced tree using BFS
+                const queue = [{ node: this.root, depth: 0 }];
+
+                while (queue.length > 0 && nextId < 25) {
+                    const { node, depth } = queue.shift();
+
+                    if (depth >= maxDepth) continue;
+
+                    // Add children
+                    for (let i = 0; i < branchingFactor && nextId < 25; i++) {
+                        const address = [...node.address, i];
+                        const child = new LHRPNode(nextId, address);
+                        child.parent = node.id;
+                        node.children.push(nextId);
+                        this.nodes.push(child);
+                        queue.push({ node: child, depth: depth + 1 });
+                        nextId++;
                     }
                 }
-                // find root(s) -> choose first node with parent -1
-                state.root = state.nodes.findIndex(nd => nd.parent === -1);
-                if (state.root === -1) state.root = 0;
 
-                // build random extraEdges (undirected), avoid duplicates and tree edges
-                state.extraEdges = [];
-                const used = new Set();
-                // mark existing tree edges so extras don't duplicate them (undirected)
-                for (let i = 0; i < n; i++) {
-                    const p = state.nodes[i].parent;
-                    if (p >= 0) {
-                        const key = edgeKey(p, i);
-                        used.add(key);
+                // Add some extra connections
+                this.generateExtraEdges(8);
+
+                this.layoutTree();
+                this.render();
+                this.updateUI();
+                this.centerTree();
+            }
+
+            generateExtraEdges(count) {
+                // Clear existing extra connections
+                this.nodes.forEach(node => node.extraConnections = []);
+
+                // Generate undirected extra edges
+                for (let i = 0; i < count; i++) {
+                    if (this.nodes.length < 3) break;
+
+                    let attempts = 0;
+                    while (attempts < 100) {
+                        attempts++;
+                        const a = Math.floor(Math.random() * this.nodes.length);
+                        const b = Math.floor(Math.random() * this.nodes.length);
+
+                        if (a === b) continue;
+
+                        const nodeA = this.nodes[a];
+                        const nodeB = this.nodes[b];
+
+                        // Skip if already connected
+                        if (nodeA.parent === b || nodeB.parent === a) continue;
+                        if (nodeA.children.includes(b) || nodeB.children.includes(a)) continue;
+                        if (nodeA.extraConnections.includes(b) || nodeB.extraConnections.includes(a)) continue;
+
+                        // Skip if distance is too small (adjacent nodes)
+                        const distance = Math.abs(nodeA.level - nodeB.level);
+                        if (distance < 2) continue;
+
+                        // Add bidirectional connection
+                        nodeA.extraConnections.push(b);
+                        nodeB.extraConnections.push(a);
+                        break;
                     }
                 }
-                // produce extraCount extras
-                let attempts = 0;
-                while (state.extraEdges.length < extraCount && attempts < extraCount * 6) {
-                    attempts++;
-                    const a = Math.floor(Math.random() * n);
-                    const b = Math.floor(Math.random() * n);
-                    if (a === b) continue;
-                    const key = edgeKey(Math.min(a, b), Math.max(a, b));
-                    if (used.has(key)) continue;
-                    used.add(key);
-                    state.extraEdges.push({ a: a, b: b });
-                }
-
-                computeLayout();
-                render();
             }
 
-            function edgeKey(a, b) {
-                return a + ":" + b;
+            layoutTree() {
+                if (!this.nodes.length) return;
+
+                // First pass: calculate subtree widths
+                this.calculateSubtreeWidths(this.root.id);
+
+                // Second pass: assign positions
+                this.assignPositions(this.root.id, 600, 80, 0);
+
+                // Calculate bounds for centering
+                this.calculateBounds();
             }
 
-            function addChildTo(nodeId) {
-                const newId = state.nodes.length;
-                state.nodes.push({ id: newId, parent: nodeId, children: [], x: 0, y: 0, depth: 0 });
-                state.nodes[nodeId].children.push(newId);
-                computeLayout();
-                render();
+            calculateSubtreeWidths(nodeId) {
+                const node = this.nodes[nodeId];
+
+                if (node.children.length === 0) {
+                    node.width = 80; // Leaf width
+                    return node.width;
+                }
+
+                let totalWidth = 0;
+                for (const childId of node.children) {
+                    totalWidth += this.calculateSubtreeWidths(childId);
+                }
+
+                // Add spacing between children
+                totalWidth += Math.max(0, node.children.length - 1) * 40;
+                node.width = totalWidth;
+                return totalWidth;
             }
 
-            function removeNode(nodeId) {
-                // cannot remove root easily; if removing root, reparent children to -1
-                if (nodeId < 0 || nodeId >= state.nodes.length) return;
-                // reparent children to parent of removed
-                const parent = state.nodes[nodeId].parent;
-                const children = state.nodes[nodeId].children.slice();
-                children.forEach(child => {
-                    state.nodes[child].parent = parent;
-                    if (parent >= 0) state.nodes[parent].children.push(child);
-                });
-                // remove node from parent's children
-                if (parent >= 0) {
-                    state.nodes[parent].children = state.nodes[parent].children.filter(c => c !== nodeId);
-                }
-                // physically remove node and reindex node ids (to simplify)
-                const keep = state.nodes.filter(n => n.id !== nodeId);
+            assignPositions(nodeId, x, y, offset) {
+                const node = this.nodes[nodeId];
 
-                // build mapping old->new
-                const oldToNew = {};
-                let idx = 0;
-                for (let i = 0; i < state.nodes.length; i++) {
-                    if (i === nodeId) continue;
-                    oldToNew[i] = idx++;
+                node.x = x + offset;
+                node.y = y;
+
+                if (node.children.length === 0) {
+                    return;
                 }
 
-                // remap nodes
-                const newNodes = keep.map(n => {
-                    const newParent = (n.parent === -1) ? -1 : (oldToNew[n.parent] ?? -1);
-                    return { id: null, parent: newParent, children: [], x: 0, y: 0, depth: 0 };
-                });
+                let currentX = x - node.width / 2 + offset;
+                const childSpacing = 60;
 
-                // assign ids and rebuild children lists
-                for (let oldIdx in oldToNew) {
-                    const newIdx = oldToNew[oldIdx];
-                    newNodes[newIdx].id = newIdx;
+                for (const childId of node.children) {
+                    const child = this.nodes[childId];
+                    const childWidth = child.width;
+
+                    this.assignPositions(childId, currentX + childWidth / 2, y + 100, 0);
+                    currentX += childWidth + childSpacing;
                 }
-                keep.forEach((n) => {
-                    const newIdx = oldToNew[n.id];
-                    if (n.parent >= 0) {
-                        const pnew = oldToNew[n.parent];
-                        newNodes[pnew].children.push(newIdx);
-                    }
-                });
-
-                // remap extraEdges: filter edges touching removed node and remap indices
-                const newExtra = [];
-                state.extraEdges.forEach(e => {
-                    if (e.a === nodeId || e.b === nodeId) return; // drop
-                    const a = oldToNew[e.a];
-                    const b = oldToNew[e.b];
-                    if (a == null || b == null) return;
-                    // avoid duplicates
-                    const k = edgeKey(Math.min(a, b), Math.max(a, b));
-                    // we'll use a temporary set to avoid duplicates below
-                    newExtra.push({ a, b });
-                });
-
-                state.nodes = newNodes;
-                state.extraEdges = dedupeEdges(newExtra);
-                state.root = state.nodes.findIndex(n => n.parent === -1);
-                if (state.root === -1) state.root = 0;
-                computeLayout();
-                render();
             }
 
-            function dedupeEdges(list) {
-                const set = new Set();
-                const out = [];
-                list.forEach(e => {
-                    const k = edgeKey(Math.min(e.a, e.b), Math.max(e.a, e.b));
-                    if (!set.has(k)) {
-                        set.add(k);
-                        out.push({ a: e.a, b: e.b });
-                    }
+            calculateBounds() {
+                if (this.nodes.length === 0) return;
+
+                let minX = Infinity, maxX = -Infinity;
+                let minY = Infinity, maxY = -Infinity;
+
+                this.nodes.forEach(node => {
+                    minX = Math.min(minX, node.x);
+                    maxX = Math.max(maxX, node.x);
+                    minY = Math.min(minY, node.y);
+                    maxY = Math.max(maxY, node.y);
                 });
-                return out;
+
+                this.treeBounds = {
+                    minX, maxX, minY, maxY,
+                    width: maxX - minX,
+                    height: maxY - minY
+                };
             }
 
-            /* -------------------------
-               Layout (tidy-like, recursive)
-               ------------------------- */
+            centerTree() {
+                if (!this.treeBounds) this.calculateBounds();
 
-            function computeLayout() {
-                if (!state.nodes.length) return;
-                // compute depth and subtree sizes via DFS
-                const nodesById = state.nodes;
-                const n = nodesById.length;
-                // ensure children arrays valid
-                for (let i = 0; i < n; i++) nodesById[i].children = nodesById[i].children || [];
-                // compute depth
-                function setDepth(id, d) {
-                    nodesById[id].depth = d;
-                    nodesById[id].children.forEach(c => setDepth(c, d + 1));
-                }
-                setDepth(state.root, 0);
-                // compute subtree size
-                function subtreeSize(id) {
-                    let size = 1;
-                    nodesById[id].children.forEach(c => size += subtreeSize(c));
-                    nodesById[id]._sub = size;
-                    return size;
-                }
-                subtreeSize(state.root);
-                // assign x positions by inorder traversal proportional to subtree sizes
-                let cursor = 40; // padding
-                const levelHeight = Math.max(100, Math.floor(state.svgH / (maxDepth() + 2)));
-                function assign(id, depth) {
-                    const node = nodesById[id];
-                    const left = cursor;
-                    if (node.children.length === 0) {
-                        node.x = cursor;
-                        cursor += 120;
-                    } else {
-                        node.children.forEach(c => assign(c, depth + 1));
-                        // x = average of children
-                        const first = nodesById[node.children[0]];
-                        const last = nodesById[node.children[node.children.length - 1]];
-                        node.x = (first.x + last.x) / 2;
-                    }
-                    node.y = 60 + depth * levelHeight;
-                }
-                assign(state.root, 0);
+                const targetWidth = this.viewport.width * 0.8;
+                const targetHeight = this.viewport.height * 0.8;
 
-                // clamp to svg width
-                const minX = Math.min(...nodesById.map(n => n.x));
-                const maxX = Math.max(...nodesById.map(n => n.x));
-                const span = Math.max(1, maxX - minX);
-                const leftPad = 40, rightPad = 80;
-                const avail = state.svgW - leftPad - rightPad;
-                nodesById.forEach(n => {
-                    n.x = leftPad + ((n.x - minX) / span) * avail;
-                });
+                // Calculate scale to fit tree
+                const scaleX = targetWidth / Math.max(this.treeBounds.width, 100);
+                const scaleY = targetHeight / Math.max(this.treeBounds.height, 100);
+                const scale = Math.min(scaleX, scaleY, 1.5);
+
+                this.viewport.scale = scale;
+
+                // Center the tree
+                const centerX = (this.treeBounds.minX + this.treeBounds.maxX) / 2;
+                const centerY = (this.treeBounds.minY + this.treeBounds.maxY) / 2;
+
+                this.viewport.x = this.viewport.width / 2 - centerX * scale;
+                this.viewport.y = this.viewport.height / 2 - centerY * scale;
+
+                this.updateViewport();
+                this.render();
             }
 
-            function maxDepth() {
-                let m = 0;
-                state.nodes.forEach(n => m = Math.max(m, n.depth || 0));
-                return m;
+            updateViewport() {
+                this.svg.setAttribute('viewBox',
+                    `${this.viewport.x} ${this.viewport.y} 
+                     ${this.viewport.width / this.viewport.scale} 
+                     ${this.viewport.height / this.viewport.scale}`);
             }
 
-            /* -------------------------
-               SVG Rendering
-               ------------------------- */
+            zoom(factor) {
+                this.viewport.scale *= factor;
+                this.viewport.scale = Math.max(0.1, Math.min(5, this.viewport.scale));
+                this.updateViewport();
+                this.render();
+            }
 
-            function render() {
-                clearSVG();
-                const nodes = state.nodes;
-                nodeCountEl.textContent = nodes.length;
-                let treeEdgeCount = 0;
-                // edges below nodes (tree edges)
-                const gEdges = svgAppend('g', svg);
-                gEdges.setAttribute('class', 'edges');
-                nodes.forEach(n => {
-                    if (n.parent !== -1 && nodes[n.parent]) {
-                        treeEdgeCount++;
-                        const p = nodes[n.parent];
-                        const line = svgAppend('line', gEdges);
-                        line.setAttribute('x1', p.x);
-                        line.setAttribute('y1', p.y + 12);
-                        line.setAttribute('x2', n.x);
-                        line.setAttribute('y2', n.y - 12);
-                        line.setAttribute('class', 'edge');
-                        line.style.stroke = 'rgba(255,255,255,0.06)';
-                    }
-                });
-                edgeCountEl.textContent = treeEdgeCount;
+            resetView() {
+                this.viewport.scale = 1;
+                this.viewport.x = 0;
+                this.viewport.y = 0;
+                this.centerTree();
+            }
 
-                // extra edges (draw under nodes but above tree edges)
-                const gExtra = svgAppend('g', svg);
-                gExtra.setAttribute('class', 'extra-edges');
-                state.extraEdges.forEach(e => {
-                    const a = state.nodes[e.a];
-                    const b = state.nodes[e.b];
-                    if (!a || !b) return;
-                    const line = svgAppend('line', gExtra);
-                    line.setAttribute('x1', a.x);
-                    line.setAttribute('y1', a.y);
-                    line.setAttribute('x2', b.x);
-                    line.setAttribute('y2', b.y);
-                    line.setAttribute('class', 'extra-edge');
-                });
-                extraEdgeCountEl.textContent = state.extraEdges.length;
+            render() {
+                // Clear SVG
+                while (this.svg.firstChild) {
+                    this.svg.removeChild(this.svg.firstChild);
+                }
 
-                // nodes (top)
-                const gNodes = svgAppend('g', svg);
-                gNodes.setAttribute('class', 'nodes');
+                const svgNS = "http://www.w3.org/2000/svg";
 
-                nodes.forEach(n => {
-                    const group = svgAppend('g', gNodes);
-                    group.setAttribute('class', 'node');
-                    group.setAttribute('data-id', n.id);
-                    group.style.cursor = 'pointer';
-                    const cx = n.x, cy = n.y;
-                    const circ = svgAppend('circle', group);
-                    circ.setAttribute('cx', cx);
-                    circ.setAttribute('cy', cy);
-                    circ.setAttribute('r', 12);
+                // Create groups for proper layering
+                const edgesGroup = document.createElementNS(svgNS, 'g');
+                edgesGroup.setAttribute('class', 'edges');
+                this.svg.appendChild(edgesGroup);
 
-                    const text = svgAppend('text', group);
-                    text.setAttribute('x', cx);
-                    text.setAttribute('y', cy + 4);
-                    text.setAttribute('text-anchor', 'middle');
-                    text.textContent = String(n.id);
+                const nodesGroup = document.createElementNS(svgNS, 'g');
+                nodesGroup.setAttribute('class', 'nodes');
+                this.svg.appendChild(nodesGroup);
 
-                    // classes for selected/start/end
-                    if (state.selectedNode === n.id) group.classList.add('selected'); else group.classList.remove('selected');
-                    if (parseInt(startNodeSelect.value) === n.id) group.classList.add('start'); else group.classList.remove('start');
-                    if (parseInt(endNodeSelect.value) === n.id) group.classList.add('end'); else group.classList.remove('end');
-
-                    group.addEventListener('click', (ev) => {
-                        ev.stopPropagation();
-                        onNodeClick(n.id);
+                // Draw extra edges first
+                this.nodes.forEach(node => {
+                    node.extraConnections.forEach(targetId => {
+                        if (targetId > node.id) {
+                            const target = this.nodes[targetId];
+                            const line = document.createElementNS(svgNS, 'line');
+                            line.setAttribute('x1', node.x.toString());
+                            line.setAttribute('y1', node.y.toString());
+                            line.setAttribute('x2', target.x.toString());
+                            line.setAttribute('y2', target.y.toString());
+                            line.setAttribute('class', 'extra-edge');
+                            edgesGroup.appendChild(line);
+                        }
                     });
                 });
 
-                rebuildNodeList();
-                rebuildSavedList();
-                rebuildSelects();
-            }
-
-            function svgAppend(tag, parent) { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); parent.appendChild(el); return el; }
-
-            /* -------------------------
-               UI interaction handlers
-               ------------------------- */
-
-            function onNodeClick(id) {
-                state.selectedNode = id;
-                selectedNodeSelect.value = String(id);
-                render();
-            }
-
-            function rebuildNodeList() {
-                nodeListEl.innerHTML = '';
-                state.nodes.forEach(n => {
-                    const div = document.createElement('div');
-                    div.className = 'node-item';
-                    const left = document.createElement('div');
-                    left.innerHTML = '<strong>#' + n.id + '</strong> <span class="muted">depth ' + n.depth + '</span>';
-                    const right = document.createElement('div');
-                    right.innerHTML = '<span class="muted">p:' + (n.parent === -1 ? '-' : n.parent) + '</span>';
-                    div.appendChild(left); div.appendChild(right);
-                    div.addEventListener('click', () => { state.selectedNode = n.id; selectedNodeSelect.value = String(n.id); render(); });
-                    nodeListEl.appendChild(div);
-                });
-            }
-
-            function rebuildSelects() {
-                // selected node select
-                const selOptions = state.nodes.map(n => `<option value="${n.id}">${n.id} (d${n.depth})</option>`).join('');
-                selectedNodeSelect.innerHTML = selOptions;
-                if (state.selectedNode != null) selectedNodeSelect.value = String(state.selectedNode);
-
-                // start/end selects
-                const opts = state.nodes.map(n => `<option value="${n.id}">${n.id}</option>`).join('');
-                startNodeSelect.innerHTML = opts;
-                endNodeSelect.innerHTML = opts;
-
-                // preserve previously selected start/end if possible
-                if (!startNodeSelect.value && state.nodes.length) startNodeSelect.value = "0";
-                if (!endNodeSelect.value && state.nodes.length) endNodeSelect.value = String(Math.max(0, state.nodes.length - 1));
-            }
-
-            /* -------------------------
-               Pathfinding (BFS on graph with extras)
-               ------------------------- */
-
-            function buildAdjacency() {
-                const adj = new Array(state.nodes.length);
-                for (let i = 0; i < state.nodes.length; i++) adj[i] = [];
-                // tree edges (undirected)
-                state.nodes.forEach(n => {
-                    if (n.parent >= 0) {
-                        adj[n.id].push(n.parent);
-                        adj[n.parent].push(n.id);
+                // Draw tree edges
+                this.nodes.forEach(node => {
+                    if (node.parent !== null) {
+                        const parent = this.nodes[node.parent];
+                        const line = document.createElementNS(svgNS, 'line');
+                        line.setAttribute('x1', parent.x.toString());
+                        line.setAttribute('y1', parent.y.toString());
+                        line.setAttribute('x2', node.x.toString());
+                        line.setAttribute('y2', node.y.toString());
+                        line.setAttribute('class', 'tree-edge');
+                        edgesGroup.appendChild(line);
                     }
                 });
-                // extra edges (undirected)
-                state.extraEdges.forEach(e => {
-                    if (e.a >= 0 && e.b >= 0 && e.a < state.nodes.length && e.b < state.nodes.length) {
-                        adj[e.a].push(e.b);
-                        adj[e.b].push(e.a);
-                    }
+
+                // Draw nodes
+                this.nodes.forEach(node => {
+                    const group = document.createElementNS(svgNS, 'g');
+                    group.setAttribute('class', 'node');
+                    group.setAttribute('data-id', node.id.toString());
+
+                    if (this.selectedNode === node.id) group.classList.add('selected');
+                    if (this.startNode === node.id) group.classList.add('start');
+                    if (this.endNode === node.id) group.classList.add('end');
+
+                    // Circle
+                    const circle = document.createElementNS(svgNS, 'circle');
+                    circle.setAttribute('cx', node.x.toString());
+                    circle.setAttribute('cy', node.y.toString());
+                    circle.setAttribute('r', '16');
+
+                    // Address text
+                    const text = document.createElementNS(svgNS, 'text');
+                    text.setAttribute('x', node.x.toString());
+                    text.setAttribute('y', (node.y + 5).toString());
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '10');
+                    text.textContent = node.address.join('.');
+
+                    // ID text
+                    const idText = document.createElementNS(svgNS, 'text');
+                    idText.setAttribute('x', node.x.toString());
+                    idText.setAttribute('y', (node.y + 22).toString());
+                    idText.setAttribute('text-anchor', 'middle');
+                    idText.setAttribute('font-size', '9');
+                    idText.setAttribute('fill', '#9aa7b2');
+                    idText.textContent = `#${node.id}`;
+
+                    group.appendChild(circle);
+                    group.appendChild(text);
+                    group.appendChild(idText);
+
+                    group.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.selectNode(node.id);
+                    });
+
+                    nodesGroup.appendChild(group);
                 });
-                // dedupe adjacency lists
-                for (let i = 0; i < adj.length; i++) {
-                    adj[i] = Array.from(new Set(adj[i]));
+
+                // Update statistics
+                this.nodeCountEl.textContent = this.nodes.length;
+                this.treeEdgeCountEl.textContent = this.nodes.filter(n => n.parent !== null).length;
+                this.extraEdgeCountEl.textContent = this.nodes.reduce((sum, n) => sum + n.extraConnections.length, 0) / 2;
+            }
+
+            selectNode(nodeId) {
+                this.selectedNode = nodeId;
+                document.getElementById('currentNode').value = nodeId;
+                this.render();
+            }
+
+            updateUI() {
+                const nodeOptions = this.nodes.map(node =>
+                    `<option value="${node.id}">#${node.id} (${node.address.join('.')})</option>`
+                ).join('');
+
+                document.getElementById('currentNode').innerHTML = nodeOptions;
+                document.getElementById('startNode').innerHTML = nodeOptions;
+                document.getElementById('endNode').innerHTML = nodeOptions;
+
+                if (this.selectedNode !== null) {
+                    document.getElementById('currentNode').value = this.selectedNode;
                 }
-                return adj;
+
+                if (this.startNode !== null) {
+                    document.getElementById('startNode').value = this.startNode;
+                }
+
+                if (this.endNode !== null) {
+                    document.getElementById('endNode').value = this.endNode;
+                }
             }
 
-            function bfsPath(aId, bId) {
-                if (aId === bId) return [aId];
-                if (aId < 0 || bId < 0 || aId >= state.nodes.length || bId >= state.nodes.length) return [];
-                const adj = buildAdjacency();
-                const q = [aId];
-                const prev = new Array(state.nodes.length).fill(-1);
-                prev[aId] = -2; // root marker
-                let found = false;
-                while (q.length) {
-                    const u = q.shift();
-                    if (u === bId) { found = true; break; }
-                    for (const v of adj[u]) {
-                        if (prev[v] === -1) {
-                            prev[v] = u;
-                            q.push(v);
+            // ... (rest of the methods remain the same as before for simulation, saving, etc.)
+            addNode() {
+                if (this.selectedNode === null) {
+                    this.log('Bitte zuerst einen Knoten auswählen', 'error');
+                    return;
+                }
+
+                const parent = this.nodes[this.selectedNode];
+                const newId = this.nodes.length;
+                const address = [...parent.address, parent.children.length];
+                const newNode = new LHRPNode(newId, address);
+                newNode.parent = parent.id;
+                parent.children.push(newId);
+                this.nodes.push(newNode);
+
+                this.layoutTree();
+                this.centerTree();
+                this.updateUI();
+                this.log(`Knoten #${newId} als Kind von #${parent.id} hinzugefügt`);
+            }
+
+            removeNode() {
+                if (this.selectedNode === null || this.selectedNode === 0) {
+                    this.log('Root-Knoten kann nicht gelöscht werden', 'error');
+                    return;
+                }
+
+                const node = this.nodes[this.selectedNode];
+
+                // Remove from parent's children
+                if (node.parent !== null) {
+                    const parent = this.nodes[node.parent];
+                    parent.children = parent.children.filter(id => id !== node.id);
+                }
+
+                // Remove all references in extra connections
+                this.nodes.forEach(n => {
+                    n.extraConnections = n.extraConnections.filter(id => id !== node.id);
+                });
+
+                // Remove node
+                this.nodes.splice(this.selectedNode, 1);
+
+                // Reindex all nodes
+                this.nodes.forEach((n, index) => {
+                    n.id = index;
+                    if (n.parent !== null && n.parent >= this.selectedNode) {
+                        n.parent--;
+                    }
+                    n.children = n.children.map(id => id > this.selectedNode ? id - 1 : id);
+                    n.extraConnections = n.extraConnections.map(id => id > this.selectedNode ? id - 1 : id);
+                });
+
+                // Update root if necessary
+                this.root = this.nodes[0];
+
+                this.selectedNode = null;
+                this.layoutTree();
+                this.centerTree();
+                this.updateUI();
+                this.log(`Knoten #${node.id} gelöscht`);
+            }
+
+            addExtraEdge() {
+                if (this.selectedNode === null) {
+                    this.log('Bitte zuerst einen Knoten auswählen', 'error');
+                    return;
+                }
+
+                const otherNodes = this.nodes
+                    .filter(n => n.id !== this.selectedNode)
+                    .filter(n => !this.nodes[this.selectedNode].children.includes(n.id))
+                    .filter(n => !this.nodes[this.selectedNode].extraConnections.includes(n.id))
+                    .filter(n => n.parent !== this.selectedNode);
+
+                if (otherNodes.length === 0) {
+                    this.log('Keine verfügbaren Knoten für Extra-Verbindung', 'error');
+                    return;
+                }
+
+                const randomNode = otherNodes[Math.floor(Math.random() * otherNodes.length)];
+
+                this.nodes[this.selectedNode].extraConnections.push(randomNode.id);
+                this.nodes[randomNode.id].extraConnections.push(this.selectedNode);
+
+                this.render();
+                this.log(`Extra-Verbindung zwischen #${this.selectedNode} und #${randomNode.id} hinzugefügt`);
+            }
+
+            async simulateLHRP() {
+                if (this.running) return;
+
+                const startId = parseInt(document.getElementById('startNode').value);
+                const endId = parseInt(document.getElementById('endNode').value);
+
+                if (isNaN(startId) || isNaN(endId)) {
+                    this.log('Bitte Start- und Zielknoten auswählen', 'error');
+                    return;
+                }
+
+                if (startId === endId) {
+                    this.log('Start und Ziel sind identisch', 'error');
+                    return;
+                }
+
+                this.startNode = startId;
+                this.endNode = endId;
+                this.running = true;
+
+                this.clearLog();
+                this.log('=== LHRP Routing Simulation startet ===', 'info');
+                this.log(`Von: #${startId} (${this.nodes[startId].address.join('.')})`);
+                this.log(`Nach: #${endId} (${this.nodes[endId].address.join('.')})`);
+
+                let current = startId;
+                const visited = new Set();
+                const path = [current];
+
+                while (current !== endId) {
+                    visited.add(current);
+
+                    // Highlight current node
+                    this.highlightNode(current);
+
+                    // Get all possible next hops
+                    const connections = this.getConnections(current);
+
+                    // LHRP Decision Logic
+                    const nextHop = this.lhrpDecision(current, endId, connections);
+
+                    await this.delay(1000);
+
+                    if (nextHop === null) {
+                        this.log(`Routing-Fehler an Knoten #${current}: Kein nächster Hop gefunden`, 'error');
+                        break;
+                    }
+
+                    if (visited.has(nextHop)) {
+                        this.log(`Loop erkannt bei Knoten #${nextHop}`, 'error');
+                        break;
+                    }
+
+                    // Draw routing path
+                    this.drawRoutingPath(current, nextHop);
+
+                    this.log(`Knoten #${current}: Weiterleitung an #${nextHop} (${this.nodes[nextHop].address.join('.')})`);
+
+                    current = nextHop;
+                    path.push(current);
+
+                    if (path.length > 20) {
+                        this.log('Maximale Hop-Anzahl erreicht', 'error');
+                        break;
+                    }
+
+                    await this.delay(800);
+                }
+
+                if (current === endId) {
+                    this.log(`Paket erfolgreich zugestellt an #${endId}`, 'success');
+                    this.log(`Pfad: ${path.map(id => `#${id}`).join(' → ')}`);
+                    this.log(`Hop-Anzahl: ${path.length - 1}`);
+                }
+
+                this.running = false;
+            }
+
+            getConnections(nodeId) {
+                const node = this.nodes[nodeId];
+                const connections = [];
+
+                if (node.parent !== null) {
+                    connections.push({
+                        id: node.parent,
+                        address: this.nodes[node.parent].address,
+                        type: 'parent'
+                    });
+                }
+
+                node.children.forEach(childId => {
+                    connections.push({
+                        id: childId,
+                        address: this.nodes[childId].address,
+                        type: 'child'
+                    });
+                });
+
+                node.extraConnections.forEach(extraId => {
+                    connections.push({
+                        id: extraId,
+                        address: this.nodes[extraId].address,
+                        type: 'extra'
+                    });
+                });
+
+                return connections;
+            }
+
+            lhrpDecision(currentId, targetId, connections) {
+                const currentNode = this.nodes[currentId];
+                const targetAddress = this.nodes[targetId].address;
+
+                if (this.compareAddresses(currentNode.address, targetAddress)) {
+                    return null;
+                }
+
+                const scoredConnections = connections.map(conn => {
+                    const score = this.getConnectionScore(conn.address, targetAddress);
+                    return {
+                        ...conn,
+                        score: score.index,
+                        positive: score.positive,
+                        negative: score.negative
+                    };
+                });
+
+                scoredConnections.sort((a, b) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return b.address.length - a.address.length;
+                });
+
+                const bestConnection = scoredConnections[0];
+
+                if (!bestConnection) return null;
+
+                const targetIsChild = currentNode.isChildOf(targetAddress);
+                const currentScore = currentNode.getConnectionScore(targetAddress);
+
+                if (targetIsChild) {
+                    const bestIsChild = bestConnection.type === 'child';
+                    if (!bestIsChild || bestConnection.score < currentScore.index) {
+                        const childConnections = connections.filter(c => c.type === 'child');
+                        for (const child of childConnections) {
+                            if (this.isPrefix(child.address, targetAddress)) {
+                                return child.id;
+                            }
                         }
                     }
                 }
-                if (!found) return [];
-                const path = [];
-                let cur = bId;
-                while (cur !== -2) {
-                    path.push(cur);
-                    cur = prev[cur];
+
+                if (bestConnection.score <= currentScore.index) {
+                    return null;
                 }
-                return path.reverse();
+
+                return bestConnection.id;
             }
 
-            /* -------------------------
-               Animation (2s per node)
-               ------------------------- */
+            getConnectionScore(address1, address2) {
+                const minLen = Math.min(address1.length, address2.length);
+                let positive = 0;
 
-            function animatePath(path) {
-                stopSimulation();
-                if (!path || path.length === 0) return;
-                let idx = 0;
-                highlightNode(path[idx]);
-                state.simInterval = setInterval(() => {
-                    idx++;
-                    if (idx >= path.length) {
-                        clearInterval(state.simInterval);
-                        state.simInterval = null;
-                        return;
+                while (positive < minLen &&
+                    address1[positive] === address2[positive]) {
+                    positive++;
+                }
+
+                const negative = address1.length - positive;
+                return { positive, negative, index: positive - negative };
+            }
+
+            compareAddresses(addr1, addr2) {
+                return addr1.length === addr2.length &&
+                    addr1.every((val, idx) => val === addr2[idx]);
+            }
+
+            isPrefix(prefix, address) {
+                if (prefix.length > address.length) return false;
+                for (let i = 0; i < prefix.length; i++) {
+                    if (prefix[i] !== address[i]) return false;
+                }
+                return true;
+            }
+
+            highlightNode(nodeId) {
+                const nodes = this.svg.querySelectorAll('.node');
+                nodes.forEach(node => node.classList.remove('highlight'));
+
+                const node = this.svg.querySelector(`.node[data-id="${nodeId}"]`);
+                if (node) node.classList.add('highlight');
+            }
+
+            drawRoutingPath(fromId, toId) {
+                const fromNode = this.nodes[fromId];
+                const toNode = this.nodes[toId];
+
+                const svgNS = "http://www.w3.org/2000/svg";
+                const line = document.createElementNS(svgNS, 'line');
+                line.setAttribute('x1', fromNode.x.toString());
+                line.setAttribute('y1', fromNode.y.toString());
+                line.setAttribute('x2', toNode.x.toString());
+                line.setAttribute('y2', toNode.y.toString());
+                line.setAttribute('class', 'routing-path');
+
+                this.svg.appendChild(line);
+
+                setTimeout(() => {
+                    if (line.parentNode === this.svg) {
+                        this.svg.removeChild(line);
                     }
-                    highlightNode(path[idx]);
                 }, 2000);
             }
 
-            function highlightNode(nodeId) {
-                // clear previous highlights
-                const all = svg.querySelectorAll('.highlight');
-                all.forEach(el => el.classList.remove('highlight'));
-                // find node group
-                const g = svg.querySelector('.node[data-id="' + nodeId + '"]');
-                if (g) g.classList.add('highlight');
-            }
+            log(message, type = 'info') {
+                const time = new Date().toLocaleTimeString('de-DE', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
 
-            function stopSimulation() {
-                if (state.simInterval) {
-                    clearInterval(state.simInterval);
-                    state.simInterval = null;
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+
+                let content = `<span class="log-time">[${time}]</span>`;
+
+                if (type === 'error') {
+                    content += `<span class="log-error">${message}</span>`;
+                } else if (type === 'success') {
+                    content += `<span class="log-action">${message}</span>`;
+                } else {
+                    content += message;
                 }
-                // remove highlights
-                const all = svg.querySelectorAll('.highlight');
-                all.forEach(el => el.classList.remove('highlight'));
+
+                entry.innerHTML = content;
+                this.routingLogEl.appendChild(entry);
+                this.routingLogEl.scrollTop = this.routingLogEl.scrollHeight;
+
+                if (this.routingLogEl.children.length > 50) {
+                    this.routingLogEl.removeChild(this.routingLogEl.firstChild);
+                }
+
+                this.logEntries.push({ time, message, type });
             }
 
-            /* -------------------------
-               Persistence (localStorage)
-               ------------------------- */
-
-            function savedTreesLoad() {
-                try {
-                    const raw = localStorage.getItem(state.savedTreesKey);
-                    if (!raw) return {};
-                    return JSON.parse(raw);
-                } catch (e) { return {}; }
-            }
-            function savedTreesSave(map) {
-                localStorage.setItem(state.savedTreesKey, JSON.stringify(map));
-                rebuildSavedList();
+            clearLog() {
+                this.routingLogEl.innerHTML = '';
+                this.logEntries = [];
             }
 
-            function saveCurrentTree(name) {
-                if (!name) { alert('Bitte Namen eingeben'); return; }
-                const map = savedTreesLoad();
-                map[name] = {
-                    parent: state.nodes.map(n => n.parent),
-                    extraEdges: state.extraEdges.map(e => ({ a: e.a, b: e.b })),
-                    createdAt: new Date().toISOString()
-                };
-                savedTreesSave(map);
-                alert('Gespeichert: ' + name);
+            stopSimulation() {
+                this.running = false;
+                this.log('Simulation gestoppt', 'info');
+
+                const nodes = this.svg.querySelectorAll('.node');
+                nodes.forEach(node => node.classList.remove('highlight'));
             }
 
-            function exportCurrentTree() {
-                const obj = {
-                    parent: state.nodes.map(n => n.parent),
-                    extraEdges: state.extraEdges.map(e => ({ a: e.a, b: e.b }))
-                };
-                const txt = JSON.stringify(obj, null, 2);
-                const w = window.open("");
-                w.document.write("<pre>" + escapeHtml(txt) + "</pre>");
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
             }
 
-            function rebuildSavedList() {
-                savedListEl.innerHTML = '';
-                const map = savedTreesLoad();
-                const names = Object.keys(map).sort((a, b) => (map[a].createdAt < map[b].createdAt) ? 1 : -1);
-                if (names.length === 0) {
-                    savedListEl.innerHTML = '<div class="muted">Keine gespeicherten Bäume</div>';
+            saveConfig() {
+                const name = document.getElementById('saveName').value.trim();
+                if (!name) {
+                    this.log('Bitte Namen eingeben', 'error');
                     return;
                 }
-                names.forEach(name => {
-                    const item = document.createElement('div');
-                    item.style.display = 'flex'; item.style.justifyContent = 'space-between'; item.style.alignItems = 'center'; item.style.padding = '6px 4px';
-                    const left = document.createElement('div');
-                    left.innerHTML = `<strong>${name}</strong><div class="muted">${(map[name].parent || []).length} Knoten · ${new Date(map[name].createdAt).toLocaleString()}</div>`;
-                    const right = document.createElement('div');
-                    const loadBtn = document.createElement('button'); loadBtn.textContent = 'Laden'; loadBtn.className = 'small-btn';
-                    loadBtn.addEventListener('click', () => { loadSavedTree(name); });
-                    const delBtn = document.createElement('button'); delBtn.textContent = 'Löschen'; delBtn.className = 'small-btn';
-                    delBtn.addEventListener('click', () => { if (confirm('Löschen?')) { delete map[name]; savedTreesSave(map); } });
-                    right.appendChild(loadBtn); right.appendChild(delBtn);
-                    item.appendChild(left); item.appendChild(right);
-                    savedListEl.appendChild(item);
-                });
+
+                const config = {
+                    nodes: this.nodes.map(node => ({
+                        id: node.id,
+                        address: node.address,
+                        parent: node.parent,
+                        children: node.children,
+                        extraConnections: node.extraConnections,
+                        x: node.x,
+                        y: node.y
+                    })),
+                    timestamp: new Date().toISOString()
+                };
+
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}');
+                saved[name] = config;
+                localStorage.setItem('lhrpConfigs', JSON.stringify(saved));
+
+                this.log(`Konfiguration "${name}" gespeichert`, 'success');
+                this.loadSavedConfigs();
             }
 
-            function loadSavedTree(name) {
-                const map = savedTreesLoad();
-                if (!map[name]) { alert('Nicht gefunden'); return; }
-                const parent = map[name].parent || [];
-                const extras = map[name].extraEdges || [];
-                // reconstruct nodes
-                state.extraEdges = [];
-                buildFromParentArrayWithExtras(parent, 0);
-                // attach extras (filter invalid)
-                extras.forEach(e => {
-                    if (typeof e.a === "number" && typeof e.b === "number" && e.a >= 0 && e.b >= 0 && e.a < parent.length && e.b < parent.length && e.a !== e.b) {
-                        state.extraEdges.push({ a: e.a, b: e.b });
-                    }
-                });
-                state.extraEdges = dedupeEdges(state.extraEdges);
-                computeLayout();
-                render();
-            }
-
-            /* -------------------------
-               Utilities
-               ------------------------- */
-
-            function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-            /* -------------------------
-               Event wiring
-               ------------------------- */
-
-            document.getElementById('genRand').addEventListener('click', () => {
-                const n = parseInt(randCountInput.value) || 20;
-                const e = parseInt(randExtrasInput.value) || 0;
-                generateRandomTree(clamp(n, 2, 500), clamp(e, 0, 2000));
-            });
-            document.getElementById('genRadQuick').addEventListener('click', () => generateRandomTree(10, 5));
-            document.getElementById('genRadLarge').addEventListener('click', () => generateRandomTree(100, 50));
-
-            document.getElementById('addChild').addEventListener('click', () => {
-                const sel = parseInt(selectedNodeSelect.value);
-                if (isNaN(sel)) { alert('Kein Knoten ausgewählt'); return; }
-                addChildTo(sel);
-            });
-
-            document.getElementById('removeNode').addEventListener('click', () => {
-                const sel = parseInt(selectedNodeSelect.value);
-                if (isNaN(sel)) { alert('Kein Knoten ausgewählt'); return; }
-                if (!confirm('Knoten ' + sel + ' löschen?')) return;
-                removeNode(sel);
-            });
-
-            document.getElementById('simulate').addEventListener('click', () => {
-                const a = parseInt(startNodeSelect.value);
-                const b = parseInt(endNodeSelect.value);
-                if (isNaN(a) || isNaN(b)) { alert('Start/End ungültig'); return; }
-                const path = bfsPath(a, b);
-                if (!path || path.length === 0) { alert('Kein Pfad'); return; }
-                animatePath(path);
-            });
-
-            document.getElementById('stopSim').addEventListener('click', () => stopSimulation());
-
-            document.getElementById('saveTree').addEventListener('click', () => {
+            loadConfig() {
                 const name = document.getElementById('saveName').value.trim();
-                saveCurrentTree(name);
-            });
+                if (!name) {
+                    this.log('Bitte Namen eingeben', 'error');
+                    return;
+                }
 
-            document.getElementById('exportTree').addEventListener('click', () => exportCurrentTree());
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}');
+                const config = saved[name];
 
-            selectedNodeSelect.addEventListener('change', (e) => {
-                state.selectedNode = parseInt(e.target.value);
-                render();
-            });
+                if (!config) {
+                    this.log(`Konfiguration "${name}" nicht gefunden`, 'error');
+                    return;
+                }
 
-            // clicking empty svg clears selection
-            svg.addEventListener('click', () => {
-                state.selectedNode = null;
-                selectedNodeSelect.value = '';
-                render();
-            });
+                this.nodes = [];
+                config.nodes.forEach(nodeData => {
+                    const node = new LHRPNode(nodeData.id, nodeData.address);
+                    node.parent = nodeData.parent;
+                    node.children = nodeData.children || [];
+                    node.extraConnections = nodeData.extraConnections || [];
+                    node.x = nodeData.x || 0;
+                    node.y = nodeData.y || 0;
+                    this.nodes[nodeData.id] = node;
+                });
 
-            // persist on unload? not necessary; saved manually
+                this.nodes = this.nodes.filter(n => n !== undefined);
+                this.root = this.nodes[0];
 
-            /* -------------------------
-               Bootstrap: initial random tree
-               ------------------------- */
-            generateRandomTree(20, 10);
+                this.calculateBounds();
+                this.centerTree();
+                this.updateUI();
 
-            // expose for debugging (optional)
-            window.LHRPSim = {
-                state,
-                generateRandomTree,
-                buildFromParentArrayWithExtras,
-                saveCurrentTree,
-                loadSavedTree,
-                exportCurrentTree,
-                animatePath,
-                stopSimulation,
-                bfsPath
-            };
-        })();
+                this.log(`Konfiguration "${name}" geladen`, 'success');
+            }
+
+            loadSavedConfigs() {
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}');
+                this.savedConfigsEl.innerHTML = '';
+
+                Object.keys(saved).forEach(name => {
+                    const config = saved[name];
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.style.cursor = 'pointer';
+                    item.innerHTML = `
+                        <strong>${name}</strong>
+                        <span style="float:right;color:#9aa7b2;font-size:10px">
+                            ${config.nodes.length} nodes
+                        </span>
+                    `;
+
+                    item.addEventListener('click', () => {
+                        document.getElementById('saveName').value = name;
+                        this.loadConfig();
+                    });
+
+                    this.savedConfigsEl.appendChild(item);
+                });
+
+                if (Object.keys(saved).length === 0) {
+                    this.savedConfigsEl.innerHTML = '<div style="color:#9aa7b2;text-align:center">Keine gespeicherten Konfigurationen</div>';
+                }
+            }
+
+            exportJSON() {
+                const config = {
+                    nodes: this.nodes.map(node => ({
+                        id: node.id,
+                        address: node.address,
+                        parent: node.parent,
+                        children: node.children,
+                        extraConnections: node.extraConnections
+                    })),
+                    metadata: {
+                        exported: new Date().toISOString(),
+                        nodeCount: this.nodes.length,
+                        extraEdgeCount: this.nodes.reduce((sum, n) => sum + n.extraConnections.length, 0) / 2
+                    }
+                };
+
+                const dataStr = JSON.stringify(config, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+                const exportFileDefaultName = `lhrp_config_${new Date().toISOString().slice(0, 10)}.json`;
+
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+
+                this.log('Konfiguration als JSON exportiert', 'success');
+            }
+        }
+
+        // Initialize simulator
+        document.addEventListener('DOMContentLoaded', () => {
+            window.simulator = new LHRPSimulator();
+        });
     </script>
 </body>
 
