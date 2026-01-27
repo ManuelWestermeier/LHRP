@@ -8,7 +8,8 @@
 #define PIN_JOYSTICK_X 32
 #define PIN_JOYSTICK_Y 33
 #define PIN_JOYSTICK_BTN 25
-#define POWER_PIN 34
+// CHANGED: use an output-capable GPIO to power the joystick
+#define POWER_PIN 26
 
 #define NET_ID 111
 #define CVG networkConfiguration1
@@ -50,10 +51,11 @@ void setup()
   Serial.begin(115200);
   Serial.println("LHRP Node Starting...");
 
-  // Power on joystick
+  // Power on joystick - use a real output pin (GPIO34 is input-only and cannot drive)
   pinMode(POWER_PIN, OUTPUT);
   digitalWrite(POWER_PIN, HIGH);
 
+  // analog pins do not require pinMode but INPUT is OK
   pinMode(PIN_JOYSTICK_X, INPUT);
   pinMode(PIN_JOYSTICK_Y, INPUT);
   pinMode(PIN_JOYSTICK_BTN, INPUT_PULLUP);
@@ -117,8 +119,14 @@ void loop()
   static bool lastBtnState = HIGH;
 
   // --- Read joystick ---
-  float x = ((analogRead(PIN_JOYSTICK_X)) - 2047.0f) / 2047.0f;
-  float y = ((analogRead(PIN_JOYSTICK_Y)) - 2047.0f) / 2047.0f;
+  int rawX = analogRead(PIN_JOYSTICK_X); // 0-4095 on ESP32 (12-bit)
+  int rawY = analogRead(PIN_JOYSTICK_Y);
+
+  // Debug: print raw ADC values to verify joystick is powered and working
+  Serial.println("Raw ADC: X=" + String(rawX) + " Y=" + String(rawY));
+
+  float x = ((float)rawX - 2048.0f) / 2048.0f;
+  float y = ((float)rawY - 2048.0f) / 2048.0f;
 
   x = constrain(x, -1.0f, 1.0f);
   y = constrain(y, -1.0f, 1.0f);
