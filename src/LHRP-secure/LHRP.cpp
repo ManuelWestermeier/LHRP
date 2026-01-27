@@ -6,12 +6,13 @@
 #include <Preferences.h>
 
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
+unordered_map<string, LHRP_Node_Secure::PeerState> LHRP_Node_Secure::peerStates;
 
 struct LHRP_Node_Secure::PeerState
 {
     uint32_t lastSeenSeq = 0;
     uint32_t lastSendSeq = 0;
-    uint32_t lastFlushTime = 0; // millis() Zeitpunkt des letzten NVS-Write
+    uint32_t lastFlushTime = 0;
 };
 
 // ------------------------
@@ -57,8 +58,8 @@ LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key,
         if (first)
         {
             node.you = p.address;
-            first = false;
             ownMac = p.mac;
+            first = false;
         }
         else
         {
@@ -74,15 +75,12 @@ bool LHRP_Node_Secure::begin()
     esp_wifi_set_channel(netIdToChannel(netId), WIFI_SECOND_CHAN_NONE);
 
     if (esp_now_init() != ESP_OK)
-    {
         return false;
-    }
 
     esp_now_register_recv_cb(onReceiveStatic);
 
     prefs.begin("lhrp", false);
 
-    // Lade RAM-basierten PeerState aus NVS
     for (auto &p : peers)
     {
         string macKey = uint8ArrayToHex(p.mac.data(), 6);
@@ -95,9 +93,7 @@ bool LHRP_Node_Secure::begin()
     for (auto &p : peers)
     {
         if (!addPeer(p.mac))
-        {
             allPeersAdded = false;
-        }
     }
 
     return allPeersAdded;
@@ -110,8 +106,7 @@ bool LHRP_Node_Secure::addPeer(const array<uint8_t, 6> &mac)
     peer.channel = netIdToChannel(netId);
     peer.encrypt = false;
 
-    esp_err_t res = esp_now_add_peer(&peer);
-    return res == ESP_OK;
+    return esp_now_add_peer(&peer) == ESP_OK;
 }
 
 // ------------------------
@@ -127,7 +122,7 @@ void LHRP_Node_Secure::maybeFlushToNVS(const string &macKey, PeerState &state)
 {
     uint32_t now = millis();
     if (now - state.lastFlushTime < 10000)
-        return; // nur alle 60 Sekunden
+        return; // nur alle 10 Sekunden
 
     prefs.putUInt(("r_" + macKey).c_str(), state.lastSeenSeq);
     prefs.putUInt(("s_" + macKey).c_str(), state.lastSendSeq);
@@ -163,13 +158,10 @@ bool LHRP_Node_Secure::send(const Pocket &p)
         return false;
 
     const array<uint8_t, 6> &peerMac = peers[pin - 1].mac;
-
     uint32_t seq = getNextSendSeq(peerMac);
-
     RawPacket raw = serializePocket(p, netId, this->key, seq);
     esp_err_t err = esp_now_send(peerMac.data(), (uint8_t *)&raw, sizeof(RawPacket));
 
-    // RAM + periodischer NVS-Flush
     string macKey = uint8ArrayToHex(peerMac.data(), 6);
     maybeFlushToNVS(macKey, peerStates[macKey]);
 
@@ -177,19 +169,13 @@ bool LHRP_Node_Secure::send(const Pocket &p)
 }
 
 // ------------------------
-void LHRP_Node_Secure::onReceiveStatic(
-    const uint8_t *mac,
-    const uint8_t *data,
-    int len)
+void LHRP_Node_Secure::onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len)
 {
     if (instance)
         instance->onReceive(mac, data, len);
 }
 
-void LHRP_Node_Secure::onReceive(
-    const uint8_t *mac,
-    const uint8_t *data,
-    int len)
+void LHRP_Node_Secure::onReceive(const uint8_t *mac, const uint8_t *data, int len)
 {
     if (len != sizeof(RawPacket))
         return;
@@ -203,15 +189,11 @@ void LHRP_Node_Secure::onReceive(
     string macKey = uint8ArrayToHex(mac, 6);
     auto &state = peerStates[macKey];
 
-    // RAM-basiertes Replay-Check + Wrap-around
     if ((int32_t)(p.seq - state.lastSeenSeq) <= 0)
         return;
 
     state.lastSeenSeq = p.seq;
-
-    // Optional: periodisches NVS speichern
     maybeFlushToNVS(macKey, state);
 
-    // Route packet
     send(p);
 }
