@@ -22,7 +22,7 @@ struct LHRP_Peer
     Address address;
 };
 
-class LHRP_Node_Secure
+struct LHRP_Node_Secure
 {
 public:
     Node node;
@@ -42,12 +42,18 @@ public:
         rxCallback = cb;
     }
 
-    // Needed for ESP-NOW static callback
     static void onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len);
 
 private:
-    struct PeerState;
-    static unordered_map<string, PeerState> peerStates;
+    // Vollständige PeerState-Struktur im Header
+    struct PeerState
+    {
+        uint32_t lastSeenSeq = 0;
+        uint32_t lastSendSeq = 0;
+        uint32_t lastFlushTime = 0;
+    };
+
+    static std::unordered_map<std::string, PeerState> peerStates;
 
     vector<LHRP_Peer> peers;
     static LHRP_Node_Secure *instance;
@@ -57,7 +63,7 @@ private:
     uint32_t getNextSendSeq(const array<uint8_t, 6> &mac);
     void maybeFlushToNVS(const string &macKey, PeerState &state);
 
-    function<void(const Pocket &)> rxCallback;
+    std::function<void(const Pocket &)> rxCallback;
 
     bool addPeer(const array<uint8_t, 6> &mac);
 

@@ -8,13 +8,6 @@
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
 unordered_map<string, LHRP_Node_Secure::PeerState> LHRP_Node_Secure::peerStates;
 
-struct LHRP_Node_Secure::PeerState
-{
-    uint32_t lastSeenSeq = 0;
-    uint32_t lastSendSeq = 0;
-    uint32_t lastFlushTime = 0;
-};
-
 // ------------------------
 inline uint8_t netIdToChannel(uint8_t netId)
 {
