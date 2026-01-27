@@ -86,8 +86,13 @@ struct Node
             }
         }
 
-        // wenn parent/child nicht vorhanden ist (gegen cycles)
+         // wen child nicht vorhanden ist
+        bool directChild = isChildren(p.destAddress, you);
         int ownMatchIdx = matchIndex(match(you, p.destAddress));
+        if (directChild && (!isChildren(best->address, you) || bestIdx < ownMatchIdx))
+            return 0;
+
+        // wenn parent nicht vorhanden ist
         if (bestIdx <= ownMatchIdx)
             return LHRP_PIN_ERROR;
 
