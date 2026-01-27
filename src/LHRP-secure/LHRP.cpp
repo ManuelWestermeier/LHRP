@@ -7,9 +7,16 @@
 
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
 
+struct LHRP_Node_Secure::PeerState
+{
+    uint32_t lastSeenSeq = 0;
+    uint32_t lastSendSeq = 0;
+    uint32_t lastFlushTime = 0; // millis() Zeitpunkt des letzten NVS-Write
+};
+
+// ------------------------
 inline uint8_t netIdToChannel(uint8_t netId)
 {
-    // Map netId → WiFi channel 1..13
     return (netId * 7 % 13) + 1;
 }
 
@@ -32,10 +39,10 @@ string LHRP_Node_Secure::macToHexKey(const uint8_t *mac, const char *prefix)
     string machex = uint8ArrayToHex(mac, 6);
     string key = prefix;
     key += machex;
-    // Preferences keys max length is sufficiently large; ensure null-termination when using c_str()
     return key;
 }
 
+// ------------------------
 LHRP_Node_Secure::LHRP_Node_Secure(uint8_t netId, const array<uint8_t, 16> &key, initializer_list<LHRP_Peer> list)
 {
     instance = this;
@@ -73,11 +80,18 @@ bool LHRP_Node_Secure::begin()
 
     esp_now_register_recv_cb(onReceiveStatic);
 
-    // open NVS namespace "lhrp"
     prefs.begin("lhrp", false);
 
-    bool allPeersAdded = true;
+    // Lade RAM-basierten PeerState aus NVS
+    for (auto &p : peers)
+    {
+        string macKey = uint8ArrayToHex(p.mac.data(), 6);
+        peerStates[macKey].lastSeenSeq = prefs.getUInt(("r_" + macKey).c_str(), 0);
+        peerStates[macKey].lastSendSeq = prefs.getUInt(("s_" + macKey).c_str(), 0);
+        peerStates[macKey].lastFlushTime = millis();
+    }
 
+    bool allPeersAdded = true;
     for (auto &p : peers)
     {
         if (!addPeer(p.mac))
@@ -100,6 +114,27 @@ bool LHRP_Node_Secure::addPeer(const array<uint8_t, 6> &mac)
     return res == ESP_OK;
 }
 
+// ------------------------
+uint32_t LHRP_Node_Secure::getNextSendSeq(const array<uint8_t, 6> &mac)
+{
+    string macKey = uint8ArrayToHex(mac.data(), 6);
+    auto &state = peerStates[macKey];
+    state.lastSendSeq++;
+    return state.lastSendSeq;
+}
+
+void LHRP_Node_Secure::maybeFlushToNVS(const string &macKey, PeerState &state)
+{
+    uint32_t now = millis();
+    if (now - state.lastFlushTime < 10000)
+        return; // nur alle 60 Sekunden
+
+    prefs.putUInt(("r_" + macKey).c_str(), state.lastSeenSeq);
+    prefs.putUInt(("s_" + macKey).c_str(), state.lastSendSeq);
+    state.lastFlushTime = now;
+}
+
+// ------------------------
 bool LHRP_Node_Secure::send(const Address &dest, const vector<uint8_t> &payload)
 {
     Pocket p{.destAddress = dest, .srcAddress = node.you, .payload = payload};
@@ -115,9 +150,7 @@ bool LHRP_Node_Secure::send(const Pocket &p)
 {
     uint8_t pin = node.send(p);
     if (pin == LHRP_PIN_ERROR)
-    {
         return false;
-    }
 
     if (pin == 0)
     {
@@ -126,26 +159,24 @@ bool LHRP_Node_Secure::send(const Pocket &p)
         return true;
     }
 
-    // Determine peer MAC for this pin
     if (pin - 1 >= peers.size())
         return false;
+
     const array<uint8_t, 6> &peerMac = peers[pin - 1].mac;
 
-    // build prefs key and read last send seq
-    string sKey = macToHexKey(peerMac.data(), "s_");
-    uint32_t last = prefs.getUInt(sKey.c_str(), 0);
-    uint32_t seq = last + 1; // simple monotonic increment; wraps naturally at 2^32
+    uint32_t seq = getNextSendSeq(peerMac);
 
-    // persist new send seq
-    prefs.putUInt(sKey.c_str(), seq);
-
-    // serialize with seq
     RawPacket raw = serializePocket(p, netId, this->key, seq);
-
     esp_err_t err = esp_now_send(peerMac.data(), (uint8_t *)&raw, sizeof(RawPacket));
+
+    // RAM + periodischer NVS-Flush
+    string macKey = uint8ArrayToHex(peerMac.data(), 6);
+    maybeFlushToNVS(macKey, peerStates[macKey]);
+
     return err == ESP_OK;
 }
 
+// ------------------------
 void LHRP_Node_Secure::onReceiveStatic(
     const uint8_t *mac,
     const uint8_t *data,
@@ -161,33 +192,26 @@ void LHRP_Node_Secure::onReceive(
     int len)
 {
     if (len != sizeof(RawPacket))
-    {
         return;
-    }
 
     RawPacket raw;
     memcpy(&raw, data, sizeof(RawPacket));
-
     Pocket p = deserializePocket(raw, netId, key);
     if (p.errored)
-    {
         return;
-    }
 
-    // Replay check: use sender MAC (esp-now mac) to index persisted last seen sequence
-    string rKey = macToHexKey(mac, "r_");
-    uint32_t lastSeen = prefs.getUInt(rKey.c_str(), 0);
+    string macKey = uint8ArrayToHex(mac, 6);
+    auto &state = peerStates[macKey];
 
-    // If received sequence is <= last seen, it's a replay
-    if (p.seq <= lastSeen)
-    {
-        // drop packet
+    // RAM-basiertes Replay-Check + Wrap-around
+    if ((int32_t)(p.seq - state.lastSeenSeq) <= 0)
         return;
-    }
 
-    // Update persisted last seen seq
-    prefs.putUInt(rKey.c_str(), p.seq);
+    state.lastSeenSeq = p.seq;
 
-    // Route packet (may be for this node or forwarded)
+    // Optional: periodisches NVS speichern
+    maybeFlushToNVS(macKey, state);
+
+    // Route packet
     send(p);
 }

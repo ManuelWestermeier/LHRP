@@ -3,6 +3,7 @@
 #include <vector>
 #include <array>
 #include <initializer_list>
+#include <unordered_map>
 #include <functional>
 #include <string>
 
@@ -45,17 +46,22 @@ public:
     static void onReceiveStatic(const uint8_t *mac, const uint8_t *data, int len);
 
 private:
-    vector<LHRP_Peer> peers;           // Store all peers
-    static LHRP_Node_Secure *instance; // Singleton for static callback
+    struct PeerState;
+    static unordered_map<string, PeerState> peerStates;
+
+    vector<LHRP_Peer> peers;
+    static LHRP_Node_Secure *instance;
+
     void onReceive(const uint8_t *mac, const uint8_t *data, int len);
 
-    std::function<void(const Pocket &)> rxCallback;
+    uint32_t getNextSendSeq(const array<uint8_t, 6> &mac);
+    void maybeFlushToNVS(const string &macKey, PeerState &state);
+
+    function<void(const Pocket &)> rxCallback;
 
     bool addPeer(const array<uint8_t, 6> &mac);
 
-    // Persistence (NVS)
     Preferences prefs;
 
-    // helpers
     static string macToHexKey(const uint8_t *mac, const char *prefix);
 };
