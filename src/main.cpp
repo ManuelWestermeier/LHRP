@@ -102,8 +102,10 @@ void loop()
 
   // --- Button toggle ---
   bool btnState = digitalRead(PIN_JOYSTICK_BTN);
-  if (btnState)
-    Serial.println(x + String("|") + y);
+
+  Serial.println("Captured:");
+  Serial.println(btnState);
+  Serial.println(xValue + String("|") + yValue);
 
   if (lastBtnState == HIGH && btnState == LOW)
   {
