@@ -85,18 +85,20 @@ void setup()
   // Receive callback
   net.onPocketReceive([&](const Pocket &pocket)
                       {
-        if (pocket.errored || isSender()) return;
+        if (pocket.errored) return;
 
         blink();
-        Serial.println("Received pocket:");
-        Serial.println("Dest size: " + String(pocket.destAddress.size()));
-        Serial.println("Src size: " + String(pocket.srcAddress.size()));
-        Serial.println("Payload size: " + String(pocket.payload.size()));
-
+        if (!isSender()) {
+            Serial.println("Received pocket:");
+            Serial.println("Dest size: " + String(pocket.destAddress.size()));
+            Serial.println("Src size: " + String(pocket.srcAddress.size()));
+            Serial.println("Payload size: " + String(pocket.payload.size()));
+        }
         if (!pocket.payload.empty()) {
             // Set LED brightness from first byte
             setLed(pocket.payload[0]);
-            Serial.println("LED brightness set to " + String(pocket.payload[0]));
+            if (!isSender())
+                Serial.println("LED brightness set to " + String(pocket.payload[0]));
         } });
 
   Serial.println(net.begin() ? "LHRP Node Started!" : "LHRP Node Failed to Start!");
