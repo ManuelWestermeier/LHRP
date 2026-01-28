@@ -173,5 +173,5 @@ void loop()
     Serial.println(net.send(destAddress, payload) ? "Send Y" : "Error Y");
   }
 
-  delay(500);
+  delay(100);
 }
