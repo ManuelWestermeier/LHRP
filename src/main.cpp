@@ -88,8 +88,7 @@ void setup()
   net.onPocketReceive([&](const Pocket &pocket)
                       {
         if (pocket.errored) return;
-
-        blink();
+        // blink();
         if (!isSender()) {
             Serial.println("Received pocket:");
             Serial.println("Dest size: " + String(pocket.destAddress.size()));
