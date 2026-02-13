@@ -4,59 +4,109 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>LHRP vs Dijkstra / A* / BFS Vergleich</title>
+    <title>Statistik: Randomisierte Bäume — LHRP vs Dijkstra / A* / BFS</title>
     <style>
+        :root {
+            --bg: #0f1724;
+            --card: #0b1220;
+            --muted: #b7d8ee;
+            --accent: #38bdf8;
+            --panel: #081025;
+            --input-bg: #07101a;
+            --border: #223047;
+        }
+
+        html,
         body {
-            font-family: Arial, sans-serif;
-            background: #0f1724;
+            height: 100%
+        }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            background: var(--bg);
             color: #e6eef6;
+            margin: 0;
             padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto
+        }
+
+        .header {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px
         }
 
         h1 {
-            color: #38bdf8;
-            margin: 0 0 12px 0
+            font-size: 1.15rem;
+            color: var(--accent);
+            margin: 0
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 12px
+        }
+
+        .panel {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border)
         }
 
         label {
             display: block;
-            margin-top: 8px
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 6px
         }
 
-        input,
-        button,
-        select {
-            padding: 8px;
-            margin: 6px 0;
-            border-radius: 6px;
-            border: 1px solid #444;
-            background: #081025;
-            color: #e6eef6;
+        .inputrow {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        input[type="number"],
+        select,
+        button {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--input-bg);
+            color: inherit;
+            font-size: 0.95rem;
         }
 
         button {
-            background: #38bdf8;
+            background: var(--accent);
             border: none;
-            font-weight: bold;
-            cursor: pointer
+            color: #022;
+            cursor: pointer;
+            font-weight: 600
         }
 
-        pre {
-            background: #0b1220;
-            padding: 15px;
-            border-radius: 8px;
-            overflow: auto;
-            white-space: pre-wrap;
-            word-break: break-word
+        .small {
+            font-size: 0.86rem;
+            color: var(--muted)
         }
 
         .grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px
+            grid-template-columns: 1fr 420px;
+            gap: 16px;
+            margin-top: 14px
         }
 
-        @media (max-width:800px) {
+        @media (max-width:980px) {
             .grid {
                 grid-template-columns: 1fr
             }
@@ -71,71 +121,195 @@
         .checkbox {
             display: flex;
             align-items: center;
-            gap: 6px
+            gap: 8px
         }
 
-        .small {
-            font-size: 0.9em;
-            color: #b7d8ee
+        .output {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: monospace;
+            background: var(--panel);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            max-height: 520px;
+            overflow: auto
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse
+        }
+
+        .table th,
+        .table td {
+            padding: 6px 8px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+            text-align: left;
+            font-size: 0.92rem
+        }
+
+        .stat-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 8px;
+            border-radius: 8px;
+            font-size: 0.85rem
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .footer {
+            margin-top: 14px;
+            font-size: 0.8rem;
+            color: var(--muted)
+        }
+
+        .csvlink {
+            color: var(--accent);
+            text-decoration: underline;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0
+        }
+
+        .progress {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 8px
+        }
+
+        .progress>i {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #7dd3fc);
+            width: 0%
+        }
+
+        .small-muted {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 6px
         }
     </style>
 </head>
 
 <body>
 
-    <h1>LHRP vs Dijkstra / A* / BFS — Vergleich</h1>
-
-    <div class="grid">
-        <div>
-            <label>Trials (Anzahl Zufallsrouten):</label>
-            <input id="trials" type="number" value="2000" min="1">
-
-            <label>Knotenanzahl (max):</label>
-            <input id="nodes" type="number" value="200" min="2">
-
-            <label>Extra Verbindungen (Shortcuts):</label>
-            <input id="extras" type="number" value="60" min="0">
-
-            <label>Max Baumtiefe:</label>
-            <input id="depth" type="number" value="6" min="1">
-
-            <label>Max Hops (für LHRP / A* Routing Abbruch):</label>
-            <input id="maxhops" type="number" value="300" min="1">
-
-            <label>Algorithmen auswählen:</label>
-            <div class="alg-list">
-                <label class="checkbox"><input class="alg" type="checkbox" value="lhrp" checked> Normal LHRP</label>
-                <label class="checkbox"><input class="alg" type="checkbox" value="bfs" checked> BFS (kürzester Pfad,
-                    ungewichtet)</label>
-                <label class="checkbox"><input class="alg" type="checkbox" value="dijkstra" checked> Dijkstra
-                    (einheitliche Kanten = BFS)</label>
-                <label class="checkbox"><input class="alg" type="checkbox" value="astar" checked> A*
-                    (Präfix-Heuristik)</label>
+    <div class="container">
+        <div class="header">
+            <h1>Statistik: Randomisierte Bäume — LHRP vs Dijkstra / A* / BFS</h1>
+            <div class="small">Ausgabe: vergleichbare Metriken pro Algorithmus (Erfolgsrate, Hops, Ops, Verteilung)
             </div>
-
-            <button onclick="runCompare()">Vergleich starten</button>
         </div>
 
-        <div>
-            <h2>Ergebnis</h2>
-            <pre id="output">Kein Lauf durchgeführt.</pre>
+        <div class="controls panel">
+            <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+                <div>
+                    <label>Trials (Anzahl zufälliger Routen)</label>
+                    <input id="trials" type="number" value="2000" min="1">
+                </div>
+                <div>
+                    <label>Knotenanzahl (max)</label>
+                    <input id="nodes" type="number" value="200" min="2">
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:10px">
+                <div style="flex:1">
+                    <label>Extra Verbindungen (Shortcuts)</label>
+                    <input id="extras" type="number" value="60" min="0">
+                </div>
+                <div style="flex:1">
+                    <label>Max Baumtiefe</label>
+                    <input id="depth" type="number" value="6" min="1">
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:10px">
+                <div style="flex:1">
+                    <label>Max Hops (LHRP Abbruch)</label>
+                    <input id="maxhops" type="number" value="300" min="1">
+                </div>
+                <div style="flex:1">
+                    <label>Random Seed (optional)</label>
+                    <input id="seed" type="number" placeholder="leer = Math.random()">
+                </div>
+            </div>
+
+            <label style="margin-top:10px">Algorithmen auswählen</label>
+            <div class="alg-list">
+                <label class="checkbox"><input class="alg" type="checkbox" value="lhrp" checked> Normal LHRP</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="bfs" checked> BFS</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="dijkstra" checked> Dijkstra</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="astar" checked> A*</label>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+                <button id="runBtn">Vergleich starten</button>
+                <button id="cancelBtn" style="background:#d1d5db;color:#012;border:none;display:none">Abbrechen</button>
+                <div style="flex:1"></div>
+                <button id="exportCSV"
+                    style="background:transparent;border:1px solid var(--border);color:var(--muted)">Export CSV</button>
+            </div>
+
+            <div class="small-muted">Hinweis: Standardmäßig werden Knotenzuordnung und Shortcuts zufällig erzeugt. Seed
+                ermöglicht Reproduzierbarkeit.</div>
+            <div class="progress" style="display:none"><i></i></div>
+        </div>
+
+        <div class="grid">
+            <div class="panel">
+                <h3 style="margin:0 0 8px 0">Ergebnisse — Zusammenfassung</h3>
+                <div id="summary" class="output">Kein Lauf durchgeführt.</div>
+            </div>
+
+            <div class="panel">
+                <h3 style="margin:0 0 8px 0">Detail- & Export-Tools</h3>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="small">CSV erzeugen: enthält pro Trial die Start/End-Knoten und pro Algorithmus
+                        success,hops,ops</div>
+                    <button id="showJSON">JSON Ergebnis anzeigen</button>
+                    <button id="showHist">Hops-Histogramme (Text)</button>
+                </div>
+                <div style="margin-top:10px" id="extraOutput" class="output" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div class="footer small-muted">
+            Der JavaScript-Client simuliert: zufällige Baumstruktur + Shortcut-Kanten; LHRP implementiert gemäß dem
+            bereitgestellten C++-Snippet.
         </div>
     </div>
 
     <script>
-        /*
-          Implementierung:
-          - zufälliger Baum mit zusätzlichen Shortcuts
-          - Adressen: arrays von small integers (wie im C++ Beispiel)
-          - Normal LHRP: Implementiert nach dem C++ Snippet, nur eine Variante
-          - BFS: ungewichteter kürzester Pfad
-          - Dijkstra: hier mit Einheit-Gewichten (gleich BFS), implementiert mit PriorityQueue
-          - A*: benutzt eine praktische Präfix-Heuristik (nicht garantiert admissible in presence of shortcuts),
-                 kann dennoch Aufschluss über zielgerichtete Suche geben.
-        */
+        /* RNG mit Seed (mulberry32) für Reproduzierbarkeit */
+        function mkRNG(seed) {
+            if (seed == null) {
+                return Math.random;
+            }
+            let t = Number(seed) >>> 0;
+            return function () {
+                t += 0x6D2B79F5;
+                var r = Math.imul(t ^ t >>> 15, 1 | t);
+                r ^= r + Math.imul(r ^ r >>> 7, 61 | r);
+                return ((r ^ r >>> 14) >>> 0) / 4294967296;
+            };
+        }
 
-        // ----------------- Hilfs: Address / Match (gemäß C++ Code) -----------------
-
+        /* --- Hilfsfunktionen (Adress/Match) --- */
         function prefixMatch(connectionAddr, pocketAddr) {
             const minLen = Math.min(connectionAddr.length, pocketAddr.length);
             let positive = 0;
@@ -143,35 +317,28 @@
             const negative = connectionAddr.length - positive;
             return { positive, negative };
         }
-
-        function matchIndex(m) {
-            return m.positive - m.negative;
-        }
-
+        function matchIndex(m) { return m.positive - m.negative; }
         function eqAddr(a1, a2) {
             if (a1.length !== a2.length) return false;
             for (let i = 0; i < a1.length; i++) if (a1[i] !== a2[i]) return false;
             return true;
         }
-
         function isChildren(other, you) {
             if (other.length <= you.length) return false;
             for (let i = 0; i < you.length; i++) if (other[i] !== you[i]) return false;
             return true;
         }
 
-        // ----------------- Graphaufbau -----------------
-
-        function buildRandomGraph(nodeCount, extraCount, maxDepth) {
+        /* --- Graphaufbau: zufälliger Baum mit Shortcuts --- */
+        function buildRandomGraph(nodeCount, extraCount, maxDepth, rng) {
             const nodes = [];
-            // root address [0]
             const root = { id: 0, address: [0], parent: null, children: [], extraConnections: [] };
             nodes.push(root);
 
             for (let i = 1; i < nodeCount; i++) {
                 const available = nodes.filter(n => n.address.length < maxDepth && n.children.length < 4);
                 if (!available.length) break;
-                const parent = available[Math.floor(Math.random() * available.length)];
+                const parent = available[Math.floor(rng() * available.length)];
                 const address = parent.address.concat([parent.children.length]);
                 const node = { id: i, address, parent: parent.id, children: [], extraConnections: [] };
                 parent.children.push(i);
@@ -179,24 +346,22 @@
             }
 
             // add extra (bidirectional) shortcuts, prefer level-different pairs
-            for (let i = 0; i < extraCount; i++) {
-                let tries = 0;
-                while (tries++ < 400) {
-                    const a = Math.floor(Math.random() * nodes.length);
-                    const b = Math.floor(Math.random() * nodes.length);
-                    if (a === b) continue;
-                    const A = nodes[a], B = nodes[b];
-                    if (A.parent === b || B.parent === a) continue;
-                    if (A.children.includes(b) || B.children.includes(a)) continue;
-                    if (A.extraConnections.includes(b)) continue;
-                    if (Math.abs(A.address.length - B.address.length) < 2) continue;
-                    A.extraConnections.push(b);
-                    B.extraConnections.push(a);
-                    break;
-                }
+            let attempts = 0;
+            for (let i = 0; i < extraCount && attempts < extraCount * 400; i++) {
+                attempts++;
+                const a = Math.floor(rng() * nodes.length);
+                const b = Math.floor(rng() * nodes.length);
+                if (a === b) continue;
+                const A = nodes[a], B = nodes[b];
+                if (A.parent === b || B.parent === a) continue;
+                if (A.children.includes(b) || B.children.includes(a)) continue;
+                if (A.extraConnections.includes(b)) continue;
+                if (Math.abs(A.address.length - B.address.length) < 2) continue;
+                A.extraConnections.push(b);
+                B.extraConnections.push(a);
             }
 
-            // prepare adjacency list
+            // adjacency and node.connections
             const adj = new Array(nodes.length).fill(0).map(() => []);
             nodes.forEach(n => {
                 if (n.parent !== null) adj[n.id].push(n.parent);
@@ -204,7 +369,6 @@
                 n.extraConnections.forEach(e => adj[n.id].push(e));
             });
 
-            // For LHRP send, prepare per-node connections (address + to)
             nodes.forEach(n => {
                 n.connections = [];
                 if (n.parent !== null) n.connections.push({ address: nodes[n.parent].address.slice(), to: n.parent });
@@ -215,8 +379,7 @@
             return { nodes, adj };
         }
 
-        // ----------------- BFS (unweighted shortest path) -----------------
-
+        /* --- BFS --- */
         function bfs(adj, start, goal) {
             const visited = new Array(adj.length).fill(false);
             const parent = new Array(adj.length).fill(-1);
@@ -242,31 +405,27 @@
             return { success: true, hops, ops };
         }
 
-        // ----------------- Dijkstra (here with unit weights) -----------------
-
+        /* --- Dijkstra (unit weights) --- */
         class MinPQ {
             constructor() { this._arr = []; }
             push(item, prio) { this._arr.push({ item, prio }); this._arr.sort((a, b) => a.prio - b.prio); }
             pop() { return this._arr.length ? this._arr.shift().item : null; }
             isEmpty() { return this._arr.length === 0; }
         }
-
         function dijkstra(adj, start, goal) {
             const n = adj.length;
             const dist = new Array(n).fill(Infinity);
             const prev = new Array(n).fill(-1);
             const pq = new MinPQ();
             let ops = 0;
-
             dist[start] = 0;
             pq.push(start, 0);
-
             while (!pq.isEmpty()) {
                 const u = pq.pop();
                 if (u === goal) break;
                 for (const v of adj[u]) {
                     ops++;
-                    const nd = dist[u] + 1; // unit weight
+                    const nd = dist[u] + 1;
                     if (nd < dist[v]) {
                         dist[v] = nd;
                         prev[v] = u;
@@ -280,36 +439,28 @@
             return { success: true, hops, ops };
         }
 
-        // ----------------- A* (heuristic: negative common-prefix based) -----------------
-        // Hinweis: Die Präfix-Heuristik ist praktisch, aber in presence of shortcuts nicht notwendigerweise admissible.
-        // Für Tests ist sie nützlich, erwartet nicht strikt optimale Ergebnisse in allen Graphen.
-
+        /* --- A* mit Präfix-Heuristik --- */
         function prefixLength(a, b) {
             const m = Math.min(a.length, b.length);
             let i = 0;
             while (i < m && a[i] === b[i]) i++;
             return i;
         }
-
         function aStar(adj, nodes, start, goal) {
-            // g = cost from start, h = heuristic: remaining depth estimate = target.level - commonPrefix
             const n = adj.length;
             const g = new Array(n).fill(Infinity);
             const f = new Array(n).fill(Infinity);
             const prev = new Array(n).fill(-1);
             const open = new MinPQ();
             let ops = 0;
-
             function heuristic(u) {
                 const common = prefixLength(nodes[u].address, nodes[goal].address);
                 const estimate = Math.max(0, nodes[goal].address.length - common);
                 return estimate;
             }
-
             g[start] = 0;
             f[start] = heuristic(start);
             open.push(start, f[start]);
-
             while (!open.isEmpty()) {
                 const u = open.pop();
                 if (u === goal) break;
@@ -324,30 +475,20 @@
                     }
                 }
             }
-
             if (!isFinite(g[goal])) return { success: false, ops };
             let hops = 0;
             for (let cur = goal; cur !== start; cur = prev[cur]) hops++;
             return { success: true, hops, ops };
         }
 
-        // ----------------- Normal LHRP (gemäß C++ snippet) -----------------
-
-        // send at node: choose best connection according to matchIndex(match(conn.address, target.address))
-        // tie-breaker: longer conn.address wins. If target is a direct child of current node (target in subtree),
-        // and chosen connection is not a child (i.e., not isChildren(best.address, you)), then fail (do not forward).
-        // Return neighbor id to forward to, or null for failure.
+        /* --- LHRP: Node send entsprechend C++ Snippet --- */
         function nodeSend_LHRP(node, nodes, pocketAddress) {
             if (!node.connections || node.connections.length === 0) return null;
-            if (eqAddr(node.address, pocketAddress)) return null; // already at destination (deliver locally)
-
-            // choose best
+            if (eqAddr(node.address, pocketAddress)) return null; // deliver locally => no forward
             let best = node.connections[0];
             let bestIdx = matchIndex(prefixMatch(best.address, pocketAddress));
             let bestLen = best.address.length;
-
             const directChild = isChildren(pocketAddress, node.address);
-
             for (let i = 1; i < node.connections.length; i++) {
                 const c = node.connections[i];
                 const idx = matchIndex(prefixMatch(c.address, pocketAddress));
@@ -358,26 +499,19 @@
                     bestLen = len;
                 }
             }
-
             if (directChild && !isChildren(best.address, node.address)) return null;
-
             return best.to;
         }
-
-        // route using LHRP: simulate forwarding until reach goal or fail
         function lhrpRoute(nodes, adj, start, goal, maxHops) {
             let current = start;
             const visited = new Set();
             let hops = 0, ops = 0;
-
             while (current !== goal) {
                 if (visited.has(current)) return { success: false, hops: null, ops };
                 visited.add(current);
                 const node = nodes[current];
                 const next = nodeSend_LHRP(node, nodes, nodes[goal].address);
-                // count ops roughly as number of connection comparisons inside nodeSend: connections length
                 ops += node.connections ? node.connections.length : 0;
-
                 if (next === null) return { success: false, hops: null, ops };
                 current = next;
                 hops++;
@@ -386,102 +520,254 @@
             return { success: true, hops, ops };
         }
 
-        // ----------------- Vergleichsroutine -----------------
+        /* --- Statistik-Hilfen --- */
+        function mean(arr) { if (!arr.length) return null; return arr.reduce((a, b) => a + b, 0) / arr.length; }
+        function median(arr) { if (!arr.length) return null; const s = arr.slice().sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+        function percentile(arr, p) { if (!arr.length) return null; const s = arr.slice().sort((a, b) => a - b); const idx = Math.max(0, Math.min(s.length - 1, Math.ceil((p / 100) * s.length) - 1)); return s[idx]; }
+        function histogram(arr, buckets = 10) {
+            if (!arr.length) return [];
+            const s = arr.slice().sort((a, b) => a - b);
+            const min = s[0], max = s[s.length - 1];
+            if (min === max) return [{ range: `${min}`, count: s.length }];
+            const size = (max - min) / buckets;
+            const out = [];
+            for (let i = 0; i < buckets; i++) out.push({ min: Math.round(min + i * size), max: Math.round(min + (i + 1) * size), count: 0 });
+            for (const v of s) {
+                let idx = Math.floor((v - min) / size);
+                if (idx === buckets) idx = buckets - 1;
+                out[idx].count++;
+            }
+            return out.map(b => ({ range: `${b.min}–${b.max}`, count: b.count }));
+        }
 
-        function vergleiche(trials, nodeCount, extra, maxDepth, selectedAlgs, maxHops) {
-            const { nodes, adj } = buildRandomGraph(nodeCount, extra, maxDepth);
+        /* --- Vergleichs-/Messroutine --- */
+        function vergleiche(trials, nodeCount, extra, maxDepth, selectedAlgs, maxHops, rng, progressCb) {
+            const { nodes, adj } = buildRandomGraph(nodeCount, extra, maxDepth, rng);
+            const stats = { network: { nodes: nodes.length, extraEdges: extra, maxDepth }, trials, algorithms: {} };
 
-            const stats = {
-                network: { nodes: nodes.length, extraEdges: extra, maxDepth },
-                trials,
-                algorithms: {}
-            };
-
-            // init stats for each algorithm
+            // initialize collectors
+            const collectors = {};
             for (const alg of selectedAlgs) {
-                stats.algorithms[alg] = { successCount: 0, totalHop: 0, totalOps: 0 };
+                collectors[alg] = { successes: 0, failures: 0, hops: [], ops: [], opsPerTrial: [], perTrial: [] };
             }
 
             for (let i = 0; i < trials; i++) {
-                let a = Math.floor(Math.random() * nodes.length);
-                let b = Math.floor(Math.random() * nodes.length);
+                // progress callback
+                if (i % 50 === 0 && progressCb) progressCb(i / trials);
+
+                let a = Math.floor(rng() * nodes.length);
+                let b = Math.floor(rng() * nodes.length);
                 if (a === b) { i--; continue; }
 
-                // BFS
                 if (selectedAlgs.includes('bfs')) {
                     const r = bfs(adj, a, b);
-                    stats.algorithms['bfs'].totalOps += r.ops;
-                    if (r.success) { stats.algorithms['bfs'].successCount++; stats.algorithms['bfs'].totalHop += r.hops; }
+                    collectors['bfs'].opsPerTrial.push(r.ops);
+                    collectors['bfs'].perTrial.push({ start: a, goal: b, success: r.success, hops: r.hops, ops: r.ops });
+                    collectors['bfs'].ops.push(r.ops);
+                    if (r.success) { collectors['bfs'].successes++; collectors['bfs'].hops.push(r.hops); } else collectors['bfs'].failures++;
                 }
-
-                // Dijkstra
                 if (selectedAlgs.includes('dijkstra')) {
                     const r = dijkstra(adj, a, b);
-                    stats.algorithms['dijkstra'].totalOps += r.ops;
-                    if (r.success) { stats.algorithms['dijkstra'].successCount++; stats.algorithms['dijkstra'].totalHop += r.hops; }
+                    collectors['dijkstra'].opsPerTrial.push(r.ops);
+                    collectors['dijkstra'].perTrial.push({ start: a, goal: b, success: r.success, hops: r.hops, ops: r.ops });
+                    collectors['dijkstra'].ops.push(r.ops);
+                    if (r.success) { collectors['dijkstra'].successes++; collectors['dijkstra'].hops.push(r.hops); } else collectors['dijkstra'].failures++;
                 }
-
-                // A*
                 if (selectedAlgs.includes('astar')) {
                     const r = aStar(adj, nodes, a, b);
-                    stats.algorithms['astar'].totalOps += r.ops;
-                    if (r.success) { stats.algorithms['astar'].successCount++; stats.algorithms['astar'].totalHop += r.hops; }
+                    collectors['astar'].opsPerTrial.push(r.ops);
+                    collectors['astar'].perTrial.push({ start: a, goal: b, success: r.success, hops: r.hops, ops: r.ops });
+                    collectors['astar'].ops.push(r.ops);
+                    if (r.success) { collectors['astar'].successes++; collectors['astar'].hops.push(r.hops); } else collectors['astar'].failures++;
                 }
-
-                // LHRP (single, normal)
                 if (selectedAlgs.includes('lhrp')) {
                     const r = lhrpRoute(nodes, adj, a, b, maxHops);
-                    stats.algorithms['lhrp'].totalOps += r.ops;
-                    if (r.success) { stats.algorithms['lhrp'].successCount++; stats.algorithms['lhrp'].totalHop += r.hops; }
+                    collectors['lhrp'].opsPerTrial.push(r.ops);
+                    collectors['lhrp'].perTrial.push({ start: a, goal: b, success: r.success, hops: r.hops, ops: r.ops });
+                    collectors['lhrp'].ops.push(r.ops);
+                    if (r.success) { collectors['lhrp'].successes++; collectors['lhrp'].hops.push(r.hops); } else collectors['lhrp'].failures++;
                 }
             }
 
             // finalize metrics
-            const out = { network: stats.network, trials: stats.trials, algorithms: {} };
             for (const alg of selectedAlgs) {
-                const s = stats.algorithms[alg];
-                out.algorithms[alg] = {
-                    successRate: s.successCount / trials,
-                    avgHop: s.successCount ? (s.totalHop / s.successCount) : null,
-                    avgOps: s.totalOps / trials
+                const c = collectors[alg];
+                const successCount = c.successes;
+                const totalTrials = trials;
+                stats.algorithms[alg] = {
+                    successRate: successCount / totalTrials,
+                    successCount: successCount,
+                    failureCount: c.failures,
+                    avgHop: successCount ? mean(c.hops) : null,
+                    medianHop: successCount ? median(c.hops) : null,
+                    p90Hop: successCount ? percentile(c.hops, 90) : null,
+                    hopHistogram: successCount ? histogram(c.hops, 8) : [],
+                    avgOpsPerTrial: mean(c.opsPerTrial),
+                    avgOpsOnSuccess: c.hops.length ? mean(c.ops.filter((_, i) => c.perTrial[i] && c.perTrial[i].success)) : mean(c.ops),
+                    raw: c // include raw perTrial if user wants export
                 };
             }
 
-            // add basic graph diagnostics
+            // graph diagnostics
             const nodeDegrees = adj.map(a => a.length);
-            out.network.avgDegree = nodeDegrees.reduce((a, b) => a + b, 0) / nodeDegrees.length;
+            stats.network.avgDegree = nodeDegrees.reduce((a, b) => a + b, 0) / nodeDegrees.length;
+            stats.network.minDegree = Math.min(...nodeDegrees);
+            stats.network.maxDegree = Math.max(...nodeDegrees);
 
-            return out;
+            return stats;
         }
 
-        // ----------------- UI / Runner -----------------
+        /* --- UI / Runner --- */
+        const runBtn = document.getElementById('runBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const exportCSV = document.getElementById('exportCSV');
+        const showJSON = document.getElementById('showJSON');
+        const showHist = document.getElementById('showHist');
+        const summary = document.getElementById('summary');
+        const extraOutput = document.getElementById('extraOutput');
+        const progressBar = document.querySelector('.progress');
+        const progressFill = document.querySelector('.progress > i');
 
-        function runCompare() {
+        let lastResult = null;
+        let running = false;
+        let cancelRequested = false;
+
+        function formatNumber(x, digits = 3) { return (x == null) ? '—' : (typeof x === 'number' ? x.toFixed(digits) : x); }
+
+        runBtn.addEventListener('click', () => {
+            if (running) return;
             const trials = Math.max(1, parseInt(document.getElementById("trials").value) || 2000);
             const nodes = Math.max(2, parseInt(document.getElementById("nodes").value) || 200);
             const extras = Math.max(0, parseInt(document.getElementById("extras").value) || 60);
             const depth = Math.max(1, parseInt(document.getElementById("depth").value) || 6);
             const maxhops = Math.max(1, parseInt(document.getElementById("maxhops").value) || 300);
-
+            const seedVal = document.getElementById("seed").value;
+            const seed = seedVal === "" ? null : Number(seedVal);
+            const rng = mkRNG(seed);
             const checks = Array.from(document.querySelectorAll('.alg')).filter(c => c.checked).map(c => c.value);
-            if (!checks.length) { document.getElementById("output").textContent = "Bitte mindestens einen Algorithmus auswählen."; return; }
+            if (!checks.length) { summary.textContent = "Bitte mindestens einen Algorithmus auswählen."; return; }
 
-            document.getElementById("output").textContent = "Berechnung läuft... (UI bleibt responsiv)";
+            running = true;
+            cancelRequested = false;
+            runBtn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
+            exportCSV.disabled = true;
+            extraOutput.textContent = '';
+            summary.textContent = "Berechnung läuft...";
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
 
-            // slight timeout for UI refresh
+            // run in a short timeout to allow UI update
             setTimeout(() => {
                 try {
                     const start = performance.now();
-                    const res = vergleiche(trials, nodes, extras, depth, checks, maxhops);
-                    const duration = ((performance.now() - start) / 1000).toFixed(2);
-                    res.duration_seconds = parseFloat(duration);
-                    document.getElementById("output").textContent = JSON.stringify(res, null, 2);
+                    // perform computation in chunks to update progress bar (not required but user-friendly)
+                    let lastProg = 0;
+                    const stats = vergleiche(trials, nodes, extras, depth, checks, maxhops, rng, (p) => {
+                        lastProg = Math.max(lastProg, p);
+                        progressFill.style.width = `${Math.round(lastProg * 100)}%`;
+                    });
+                    const dur = (performance.now() - start) / 1000;
+                    stats.duration_seconds = dur;
+                    lastResult = stats;
+                    // render summary
+                    const lines = [];
+                    lines.push(`Netzwerk: nodes=${stats.network.nodes}, extras=${stats.network.extraEdges}, maxDepth=${stats.network.maxDepth}`);
+                    lines.push(`Knoten-Grad: avg=${stats.network.avgDegree.toFixed(2)}, min=${stats.network.minDegree}, max=${stats.network.maxDegree}`);
+                    lines.push(`Trials: ${stats.trials} — Dauer: ${stats.duration_seconds.toFixed(2)}s`);
+                    lines.push('');
+                    for (const alg of Object.keys(stats.algorithms)) {
+                        const a = stats.algorithms[alg];
+                        lines.push(`${alg.toUpperCase()}:`);
+                        lines.push(`  Erfolgsrate: ${(a.successRate * 100).toFixed(2)}% (${a.successCount}/${stats.trials})`);
+                        lines.push(`  Avg Hops: ${formatNumber(a.avgHop, 2)}  | Median: ${formatNumber(a.medianHop, 2)}  | P90: ${formatNumber(a.p90Hop, 2)}`);
+                        lines.push(`  Avg Ops (pro Trial): ${formatNumber(a.avgOpsPerTrial, 2)}  Avg Ops (success): ${formatNumber(a.avgOpsOnSuccess, 2)}`);
+                        if (a.hopHistogram && a.hopHistogram.length) {
+                            lines.push(`  Hops Histogramm: ${a.hopHistogram.map(h => `${h.range}:${h.count}`).join(' | ')}`);
+                        }
+                        lines.push('');
+                    }
+                    summary.textContent = lines.join('\n');
+                    progressFill.style.width = '100%';
+                    exportCSV.disabled = false;
+                    running = false;
+                    runBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                    progressBar.style.display = 'none';
                 } catch (e) {
-                    document.getElementById("output").textContent = "Fehler: " + e.toString();
+                    summary.textContent = "Fehler: " + e.toString();
+                    running = false;
+                    runBtn.disabled = false;
+                    cancelBtn.style.display = 'none';
+                    progressBar.style.display = 'none';
                 }
             }, 30);
-        }
+        });
 
+        cancelBtn.addEventListener('click', () => {
+            // in this single-threaded implementation we can't truly cancel vergleiche mid-run.
+            // we show/hide controls accordingly. (Kein asynchrones Abbrechen implementiert.)
+            if (!running) return;
+            cancelRequested = true;
+            summary.textContent = "Abbruch angefordert — aktueller Lauf wird beendet (sofort nicht abbrechbar).";
+        });
+
+        /* --- JSON / Histogram Anzeigen --- */
+        showJSON.addEventListener('click', () => {
+            if (!lastResult) { extraOutput.textContent = "Kein Ergebnis zum Anzeigen."; return; }
+            extraOutput.textContent = JSON.stringify(lastResult, null, 2);
+        });
+        showHist.addEventListener('click', () => {
+            if (!lastResult) { extraOutput.textContent = "Kein Ergebnis zum Anzeigen."; return; }
+            const parts = [];
+            for (const alg of Object.keys(lastResult.algorithms)) {
+                const a = lastResult.algorithms[alg];
+                parts.push(`== ${alg.toUpperCase()} ==`);
+                if (!a.hopHistogram || !a.hopHistogram.length) { parts.push('  Keine erfolgreichen Pfade (keine Histogrammdaten)'); continue; }
+                for (const b of a.hopHistogram) {
+                    parts.push(`  ${b.range.padEnd(12)} | ${b.count}`);
+                }
+                parts.push('');
+            }
+            extraOutput.textContent = parts.join('\n');
+        });
+
+        /* --- CSV Export --- */
+        exportCSV.addEventListener('click', () => {
+            if (!lastResult) { extraOutput.textContent = "Kein Ergebnis zum Exportieren."; return; }
+            // build CSV: trialIdx,start,goal,alg,success,hops,ops
+            const algs = Object.keys(lastResult.algorithms);
+            // find raw perTrial arrays from one algorithm to know length & get start/goal
+            // raw stored in lastResult.algorithms[alg].raw.perTrial
+            const samplesAlg = algs[0];
+            const raw = lastResult.algorithms[samplesAlg].raw;
+            if (!raw || !raw.perTrial) {
+                extraOutput.textContent = "Rohdaten nicht verfügbar für CSV-Export.";
+                return;
+            }
+            const trials = raw.perTrial.length;
+            const rows = [];
+            rows.push(['trial', 'start', 'goal', 'algorithm', 'success', 'hops', 'ops'].join(','));
+            for (let i = 0; i < trials; i++) {
+                for (const alg of algs) {
+                    const r = lastResult.algorithms[alg].raw.perTrial[i] || { start: '', goal: '', success: false, hops: '', ops: '' };
+                    rows.push([i, r.start, r.goal, alg, r.success ? 1 : 0, r.hops == null ? '' : r.hops, r.ops == null ? '' : r.ops].join(','));
+                }
+            }
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `lhpr_compare_${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        });
+
+        /* --- Initialize small demo run on load (disabled) --- */
+        // document.getElementById('runBtn').click();
     </script>
 
 </body>
