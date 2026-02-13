@@ -2,9 +2,9 @@
 <html lang="de">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LHRP vs Dijkstra Vergleich — 5 LHRP-Varianten</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LHRP vs Dijkstra / A* / BFS Vergleich</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,11 +15,12 @@
 
         h1 {
             color: #38bdf8;
+            margin: 0 0 12px 0
         }
 
         label {
             display: block;
-            margin-top: 8px;
+            margin-top: 8px
         }
 
         input,
@@ -37,7 +38,7 @@
             background: #38bdf8;
             border: none;
             font-weight: bold;
-            cursor: pointer;
+            cursor: pointer
         }
 
         pre {
@@ -46,25 +47,7 @@
             border-radius: 8px;
             overflow: auto;
             white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        .alg-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 6px;
-        }
-
-        .checkbox {
-            display: flex;
-            align-items: center;
-            gap: 6px
-        }
-
-        .small {
-            font-size: 0.9em;
-            color: #b7d8ee
+            word-break: break-word
         }
 
         .grid {
@@ -78,74 +61,124 @@
                 grid-template-columns: 1fr
             }
         }
+
+        .alg-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .small {
+            font-size: 0.9em;
+            color: #b7d8ee
+        }
     </style>
 </head>
 
 <body>
 
-    <h1>LHRP vs Dijkstra Vergleich — 5 LHRP-Varianten</h1>
+    <h1>LHRP vs Dijkstra / A* / BFS — Vergleich</h1>
 
     <div class="grid">
         <div>
-            <label>Routen (Trials):</label>
-            <input id="trials" type="number" value="10000" min="1">
+            <label>Trials (Anzahl Zufallsrouten):</label>
+            <input id="trials" type="number" value="2000" min="1">
 
-            <label>Knotenanzahl:</label>
+            <label>Knotenanzahl (max):</label>
             <input id="nodes" type="number" value="200" min="2">
 
-            <label>Extra Verbindungen:</label>
+            <label>Extra Verbindungen (Shortcuts):</label>
             <input id="extras" type="number" value="60" min="0">
 
-            <label>Max Tiefe:</label>
+            <label>Max Baumtiefe:</label>
             <input id="depth" type="number" value="6" min="1">
 
-            <label>Max Hops erlauben (für LHRP):</label>
-            <input id="maxhops" type="number" value="200" min="1">
+            <label>Max Hops (für LHRP / A* Routing Abbruch):</label>
+            <input id="maxhops" type="number" value="300" min="1">
 
-            <label>Lokale Suche Tiefe (für localBFS):</label>
-            <input id="localDepth" type="number" value="4" min="1">
-
-            <label>Ausgewählte LHRP-Varianten:</label>
+            <label>Algorithmen auswählen:</label>
             <div class="alg-list">
-                <label class="checkbox"><input type="checkbox" class="alg" value="prefix" checked> LHRP —
-                    Präfix-Score</label>
-                <label class="checkbox"><input type="checkbox" class="alg" value="level" checked> LHRP —
-                    Level-Abstands-Score</label>
-                <label class="checkbox"><input type="checkbox" class="alg" value="combined" checked> LHRP — Kombinierter
-                    Score (Präfix+Level)</label>
-                <label class="checkbox"><input type="checkbox" class="alg" value="localbfs" checked> LHRP — Lokale
-                    BFS-Auswahl</label>
-                <label class="checkbox"><input type="checkbox" class="alg" value="greedyRandom" checked> LHRP — Greedy
-                    mit Zufallstie-Break</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="lhrp" checked> Normal LHRP</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="bfs" checked> BFS (kürzester Pfad,
+                    ungewichtet)</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="dijkstra" checked> Dijkstra
+                    (einheitliche Kanten = BFS)</label>
+                <label class="checkbox"><input class="alg" type="checkbox" value="astar" checked> A*
+                    (Präfix-Heuristik)</label>
             </div>
 
             <button onclick="runCompare()">Vergleich starten</button>
         </div>
 
         <div>
-            <h2>Ergebnis:</h2>
-            <pre id="output">Noch kein Lauf ausgeführt.</pre>
+            <h2>Ergebnis</h2>
+            <pre id="output">Kein Lauf durchgeführt.</pre>
         </div>
     </div>
 
     <script>
-        // ---------------------- Graph / Hilfsfunktionen ----------------------
+        /*
+          Implementierung:
+          - zufälliger Baum mit zusätzlichen Shortcuts
+          - Adressen: arrays von small integers (wie im C++ Beispiel)
+          - Normal LHRP: Implementiert nach dem C++ Snippet, nur eine Variante
+          - BFS: ungewichteter kürzester Pfad
+          - Dijkstra: hier mit Einheit-Gewichten (gleich BFS), implementiert mit PriorityQueue
+          - A*: benutzt eine praktische Präfix-Heuristik (nicht garantiert admissible in presence of shortcuts),
+                 kann dennoch Aufschluss über zielgerichtete Suche geben.
+        */
+
+        // ----------------- Hilfs: Address / Match (gemäß C++ Code) -----------------
+
+        function prefixMatch(connectionAddr, pocketAddr) {
+            const minLen = Math.min(connectionAddr.length, pocketAddr.length);
+            let positive = 0;
+            while (positive < minLen && connectionAddr[positive] === pocketAddr[positive]) positive++;
+            const negative = connectionAddr.length - positive;
+            return { positive, negative };
+        }
+
+        function matchIndex(m) {
+            return m.positive - m.negative;
+        }
+
+        function eqAddr(a1, a2) {
+            if (a1.length !== a2.length) return false;
+            for (let i = 0; i < a1.length; i++) if (a1[i] !== a2[i]) return false;
+            return true;
+        }
+
+        function isChildren(other, you) {
+            if (other.length <= you.length) return false;
+            for (let i = 0; i < you.length; i++) if (other[i] !== you[i]) return false;
+            return true;
+        }
+
+        // ----------------- Graphaufbau -----------------
 
         function buildRandomGraph(nodeCount, extraCount, maxDepth) {
             const nodes = [];
-            const root = { id: 0, address: [0], parent: null, children: [], extraConnections: [], level: 1 };
+            // root address [0]
+            const root = { id: 0, address: [0], parent: null, children: [], extraConnections: [] };
             nodes.push(root);
 
             for (let i = 1; i < nodeCount; i++) {
-                const available = nodes.filter(n => n.level < maxDepth && n.children.length < 4);
+                const available = nodes.filter(n => n.address.length < maxDepth && n.children.length < 4);
                 if (!available.length) break;
                 const parent = available[Math.floor(Math.random() * available.length)];
-                const address = [...parent.address, parent.children.length];
-                const node = { id: i, address, parent: parent.id, children: [], extraConnections: [], level: address.length };
+                const address = parent.address.concat([parent.children.length]);
+                const node = { id: i, address, parent: parent.id, children: [], extraConnections: [] };
                 parent.children.push(i);
                 nodes.push(node);
             }
 
+            // add extra (bidirectional) shortcuts, prefer level-different pairs
             for (let i = 0; i < extraCount; i++) {
                 let tries = 0;
                 while (tries++ < 400) {
@@ -156,27 +189,34 @@
                     if (A.parent === b || B.parent === a) continue;
                     if (A.children.includes(b) || B.children.includes(a)) continue;
                     if (A.extraConnections.includes(b)) continue;
-                    // Prefer connecting nodes of different levels to create shortcuts
-                    if (Math.abs(A.level - B.level) < 2) continue;
+                    if (Math.abs(A.address.length - B.address.length) < 2) continue;
                     A.extraConnections.push(b);
                     B.extraConnections.push(a);
                     break;
                 }
             }
-            return nodes;
-        }
 
-        function buildAdj(nodes) {
+            // prepare adjacency list
             const adj = new Array(nodes.length).fill(0).map(() => []);
             nodes.forEach(n => {
                 if (n.parent !== null) adj[n.id].push(n.parent);
                 n.children.forEach(c => adj[n.id].push(c));
                 n.extraConnections.forEach(e => adj[n.id].push(e));
             });
-            return adj;
+
+            // For LHRP send, prepare per-node connections (address + to)
+            nodes.forEach(n => {
+                n.connections = [];
+                if (n.parent !== null) n.connections.push({ address: nodes[n.parent].address.slice(), to: n.parent });
+                n.children.forEach(c => n.connections.push({ address: nodes[c].address.slice(), to: c }));
+                n.extraConnections.forEach(e => n.connections.push({ address: nodes[e].address.slice(), to: e }));
+            });
+
+            return { nodes, adj };
         }
 
-        // BFS ungewichteter kürzester Pfad (hier als "Dijkstra" Ersatz)
+        // ----------------- BFS (unweighted shortest path) -----------------
+
         function bfs(adj, start, goal) {
             const visited = new Array(adj.length).fill(false);
             const parent = new Array(adj.length).fill(-1);
@@ -202,381 +242,244 @@
             return { success: true, hops, ops };
         }
 
-        // Basis: Präfix-Score (mehr gemeinsame Präfix-Elemente besser)
-        function prefixScore(a, b) {
-            const min = Math.min(a.length, b.length);
-            let pos = 0;
-            while (pos < min && a[pos] === b[pos]) pos++;
-            const neg = a.length - pos;
-            return pos - neg;
+        // ----------------- Dijkstra (here with unit weights) -----------------
+
+        class MinPQ {
+            constructor() { this._arr = []; }
+            push(item, prio) { this._arr.push({ item, prio }); this._arr.sort((a, b) => a.prio - b.prio); }
+            pop() { return this._arr.length ? this._arr.shift().item : null; }
+            isEmpty() { return this._arr.length === 0; }
         }
 
-        // Hilfs: Level-Distanz Score (je näher am Ziellevel desto besser)
-        function levelScore(levelA, levelTarget) {
-            // kleiner Abstand besser => invertieren um höhere besser
-            return -Math.abs(levelA - levelTarget);
+        function dijkstra(adj, start, goal) {
+            const n = adj.length;
+            const dist = new Array(n).fill(Infinity);
+            const prev = new Array(n).fill(-1);
+            const pq = new MinPQ();
+            let ops = 0;
+
+            dist[start] = 0;
+            pq.push(start, 0);
+
+            while (!pq.isEmpty()) {
+                const u = pq.pop();
+                if (u === goal) break;
+                for (const v of adj[u]) {
+                    ops++;
+                    const nd = dist[u] + 1; // unit weight
+                    if (nd < dist[v]) {
+                        dist[v] = nd;
+                        prev[v] = u;
+                        pq.push(v, nd);
+                    }
+                }
+            }
+            if (!isFinite(dist[goal])) return { success: false, ops };
+            let hops = 0;
+            for (let cur = goal; cur !== start; cur = prev[cur]) hops++;
+            return { success: true, hops, ops };
         }
 
-        // ---------------------- LHRP-Varianten ----------------------
+        // ----------------- A* (heuristic: negative common-prefix based) -----------------
+        // Hinweis: Die Präfix-Heuristik ist praktisch, aber in presence of shortcuts nicht notwendigerweise admissible.
+        // Für Tests ist sie nützlich, erwartet nicht strikt optimale Ergebnisse in allen Graphen.
 
-        // 1) prefix: original LHRP - wählt Nachbarn mit größtem Präfix-Score
-        function lhrp_prefix(nodes, start, goal, maxHops) {
+        function prefixLength(a, b) {
+            const m = Math.min(a.length, b.length);
+            let i = 0;
+            while (i < m && a[i] === b[i]) i++;
+            return i;
+        }
+
+        function aStar(adj, nodes, start, goal) {
+            // g = cost from start, h = heuristic: remaining depth estimate = target.level - commonPrefix
+            const n = adj.length;
+            const g = new Array(n).fill(Infinity);
+            const f = new Array(n).fill(Infinity);
+            const prev = new Array(n).fill(-1);
+            const open = new MinPQ();
+            let ops = 0;
+
+            function heuristic(u) {
+                const common = prefixLength(nodes[u].address, nodes[goal].address);
+                const estimate = Math.max(0, nodes[goal].address.length - common);
+                return estimate;
+            }
+
+            g[start] = 0;
+            f[start] = heuristic(start);
+            open.push(start, f[start]);
+
+            while (!open.isEmpty()) {
+                const u = open.pop();
+                if (u === goal) break;
+                for (const v of adj[u]) {
+                    ops++;
+                    const tentative_g = g[u] + 1;
+                    if (tentative_g < g[v]) {
+                        g[v] = tentative_g;
+                        prev[v] = u;
+                        f[v] = g[v] + heuristic(v);
+                        open.push(v, f[v]);
+                    }
+                }
+            }
+
+            if (!isFinite(g[goal])) return { success: false, ops };
+            let hops = 0;
+            for (let cur = goal; cur !== start; cur = prev[cur]) hops++;
+            return { success: true, hops, ops };
+        }
+
+        // ----------------- Normal LHRP (gemäß C++ snippet) -----------------
+
+        // send at node: choose best connection according to matchIndex(match(conn.address, target.address))
+        // tie-breaker: longer conn.address wins. If target is a direct child of current node (target in subtree),
+        // and chosen connection is not a child (i.e., not isChildren(best.address, you)), then fail (do not forward).
+        // Return neighbor id to forward to, or null for failure.
+        function nodeSend_LHRP(node, nodes, pocketAddress) {
+            if (!node.connections || node.connections.length === 0) return null;
+            if (eqAddr(node.address, pocketAddress)) return null; // already at destination (deliver locally)
+
+            // choose best
+            let best = node.connections[0];
+            let bestIdx = matchIndex(prefixMatch(best.address, pocketAddress));
+            let bestLen = best.address.length;
+
+            const directChild = isChildren(pocketAddress, node.address);
+
+            for (let i = 1; i < node.connections.length; i++) {
+                const c = node.connections[i];
+                const idx = matchIndex(prefixMatch(c.address, pocketAddress));
+                const len = c.address.length;
+                if (idx > bestIdx || (idx === bestIdx && len > bestLen)) {
+                    best = c;
+                    bestIdx = idx;
+                    bestLen = len;
+                }
+            }
+
+            if (directChild && !isChildren(best.address, node.address)) return null;
+
+            return best.to;
+        }
+
+        // route using LHRP: simulate forwarding until reach goal or fail
+        function lhrpRoute(nodes, adj, start, goal, maxHops) {
             let current = start;
             const visited = new Set();
             let hops = 0, ops = 0;
-            const targetAddr = nodes[goal].address;
+
             while (current !== goal) {
-                if (visited.has(current)) return { success: false, ops };
+                if (visited.has(current)) return { success: false, hops: null, ops };
                 visited.add(current);
                 const node = nodes[current];
-                const conns = [];
-                if (node.parent !== null) conns.push(node.parent);
-                conns.push(...node.children);
-                conns.push(...node.extraConnections);
-                let best = null, bestScore = -Infinity;
-                for (const id of conns) {
-                    ops++;
-                    const s = prefixScore(nodes[id].address, targetAddr);
-                    if (s > bestScore) { bestScore = s; best = id; }
-                }
-                if (best === null || bestScore <= prefixScore(node.address, targetAddr)) return { success: false, ops };
-                current = best;
+                const next = nodeSend_LHRP(node, nodes, nodes[goal].address);
+                // count ops roughly as number of connection comparisons inside nodeSend: connections length
+                ops += node.connections ? node.connections.length : 0;
+
+                if (next === null) return { success: false, hops: null, ops };
+                current = next;
                 hops++;
-                if (hops > maxHops) return { success: false, ops };
+                if (hops > maxHops) return { success: false, hops: null, ops };
             }
             return { success: true, hops, ops };
         }
 
-        // 2) level: wählt Nachbarn mit minimaler Distanz zum Ziel-Level
-        function lhrp_level(nodes, start, goal, maxHops) {
-            let current = start;
-            const visited = new Set();
-            let hops = 0, ops = 0;
-            const targetLevel = nodes[goal].level;
-            while (current !== goal) {
-                if (visited.has(current)) return { success: false, ops };
-                visited.add(current);
-                const node = nodes[current];
-                const conns = [];
-                if (node.parent !== null) conns.push(node.parent);
-                conns.push(...node.children);
-                conns.push(...node.extraConnections);
-                let best = null, bestScore = -Infinity;
-                for (const id of conns) {
-                    ops++;
-                    const s = levelScore(nodes[id].level, targetLevel);
-                    if (s > bestScore) { bestScore = s; best = id; }
-                }
-                if (best === null || bestScore <= levelScore(node.level, targetLevel)) return { success: false, ops };
-                current = best;
-                hops++;
-                if (hops > maxHops) return { success: false, ops };
-            }
-            return { success: true, hops, ops };
-        }
+        // ----------------- Vergleichsroutine -----------------
 
-        // 3) combined: kombiniert Präfix-Score und Level-Score (gewichtbar)
-        function lhrp_combined(nodes, start, goal, maxHops, opts) {
-            const alpha = (opts && opts.alpha !== undefined) ? opts.alpha : 1.0; // prefix weight
-            const beta = (opts && opts.beta !== undefined) ? opts.beta : 0.6; // level weight
-            let current = start;
-            const visited = new Set();
-            let hops = 0, ops = 0;
-            const targetAddr = nodes[goal].address;
-            const targetLevel = nodes[goal].level;
-            while (current !== goal) {
-                if (visited.has(current)) return { success: false, ops };
-                visited.add(current);
-                const node = nodes[current];
-                const conns = [];
-                if (node.parent !== null) conns.push(node.parent);
-                conns.push(...node.children);
-                conns.push(...node.extraConnections);
-                let best = null, bestScore = -Infinity;
-                for (const id of conns) {
-                    ops++;
-                    const s1 = prefixScore(nodes[id].address, targetAddr);
-                    const s2 = levelScore(nodes[id].level, targetLevel);
-                    const s = alpha * s1 + beta * s2;
-                    if (s > bestScore) { bestScore = s; best = id; }
-                }
-                // accept move only if improves combined score
-                const currentScore = alpha * prefixScore(node.address, targetAddr) + beta * levelScore(node.level, targetLevel);
-                if (best === null || bestScore <= currentScore) return { success: false, ops };
-                current = best;
-                hops++;
-                if (hops > maxHops) return { success: false, ops };
-            }
-            return { success: true, hops, ops };
-        }
+        function vergleiche(trials, nodeCount, extra, maxDepth, selectedAlgs, maxHops) {
+            const { nodes, adj } = buildRandomGraph(nodeCount, extra, maxDepth);
 
-        // 4) localBFS: für jeden Nachbarn führt lokalen BFS (bis depth) und wählt Nachbarn mit kürzester gefundener Distanz zum Ziel
-        function lhrp_localBFS(nodes, start, goal, maxHops, opts) {
-            const localDepth = (opts && opts.localDepth) ? opts.localDepth : 3;
-            const adj = buildAdj(nodes);
-
-            let current = start;
-            const visitedGlobal = new Set();
-            let hops = 0, ops = 0;
-
-            // limited BFS helper returning distance if reachable within limit
-            function limitedBfsFrom(src, target, limit) {
-                const visited = new Array(adj.length).fill(false);
-                const q = [src];
-                let head = 0;
-                let depthArr = new Array(adj.length).fill(0);
-                visited[src] = true;
-                while (head < q.length) {
-                    const u = q[head++];
-                    if (u === target) return { found: true, dist: depthArr[u], ops: 0 }; // ops counted elsewhere
-                    if (depthArr[u] >= limit) continue;
-                    for (const v of adj[u]) {
-                        ops++;
-                        if (!visited[v]) {
-                            visited[v] = true;
-                            depthArr[v] = depthArr[u] + 1;
-                            q.push(v);
-                        }
-                    }
-                }
-                return { found: false, dist: Infinity, ops: 0 };
-            }
-
-            while (current !== goal) {
-                if (visitedGlobal.has(current)) return { success: false, ops };
-                visitedGlobal.add(current);
-                const node = nodes[current];
-                const conns = [];
-                if (node.parent !== null) conns.push(node.parent);
-                conns.push(...node.children);
-                conns.push(...node.extraConnections);
-                let best = null, bestDist = Infinity;
-                for (const id of conns) {
-                    // run limited BFS from neighbor id toward goal (so we're simulating "if I go to this neighbor, can it reach goal quickly?")
-                    const res = limitedBfsFrom(id, goal, localDepth);
-                    if (res.found && res.dist < bestDist) {
-                        bestDist = res.dist;
-                        best = id;
-                    } else if (!res.found && best === null) {
-                        // if none finds within limit, pick neighbor that had smallest heuristic (fallback to prefix)
-                        // compute heuristic as negative prefix score to prefer larger prefix
-                        // but prefer any reachable first; if none reachable within limit, choose highest prefix
-                        // handled below after loop
-                    }
-                }
-                if (best === null) {
-                    // fallback: choose by prefix score (trying to continue greedy)
-                    let bestPref = null, bestScore = -Infinity;
-                    const targetAddr = nodes[goal].address;
-                    for (const id of conns) {
-                        ops++;
-                        const s = prefixScore(nodes[id].address, targetAddr);
-                        if (s > bestScore) { bestScore = s; bestPref = id; }
-                    }
-                    if (bestPref === null || bestScore <= prefixScore(node.address, nodes[goal].address)) return { success: false, ops };
-                    current = bestPref;
-                } else {
-                    current = best;
-                }
-                hops++;
-                if (hops > maxHops) return { success: false, ops };
-            }
-            return { success: true, hops, ops };
-        }
-
-        // 5) greedyRandom: greedy prefix but breaks ties randomly; allows single backoff step if stuck once
-        function lhrp_greedyRandom(nodes, start, goal, maxHops) {
-            let current = start;
-            const visited = new Set();
-            let hops = 0, ops = 0;
-            const targetAddr = nodes[goal].address;
-            let backoffUsed = false;
-
-            while (current !== goal) {
-                if (visited.has(current)) {
-                    // if visited and backoff not used, try to back off to any neighbor with second-best prefix (to attempt escape)
-                    if (!backoffUsed) {
-                        backoffUsed = true;
-                        const node = nodes[current];
-                        const conns = [];
-                        if (node.parent !== null) conns.push(node.parent);
-                        conns.push(...node.children);
-                        conns.push(...node.extraConnections);
-                        let bestScore = -Infinity, secondScore = -Infinity;
-                        for (const id of conns) {
-                            ops++;
-                            const s = prefixScore(nodes[id].address, targetAddr);
-                            if (s > bestScore) { secondScore = bestScore; bestScore = s; }
-                            else if (s > secondScore) { secondScore = s; }
-                        }
-                        // choose neighbor with secondScore if exists
-                        if (secondScore > -Infinity) {
-                            const candidates = conns.filter(id => prefixScore(nodes[id].address, targetAddr) === secondScore);
-                            if (candidates.length) {
-                                const pick = candidates[Math.floor(Math.random() * candidates.length)];
-                                current = pick;
-                                hops++;
-                                if (hops > maxHops) return { success: false, ops };
-                                continue;
-                            }
-                        }
-                    }
-                    return { success: false, ops };
-                }
-                visited.add(current);
-                const node = nodes[current];
-                const conns = [];
-                if (node.parent !== null) conns.push(node.parent);
-                conns.push(...node.children);
-                conns.push(...node.extraConnections);
-                // compute best prefix score
-                let bestScore = -Infinity;
-                for (const id of conns) {
-                    ops++;
-                    const s = prefixScore(nodes[id].address, targetAddr);
-                    if (s > bestScore) bestScore = s;
-                }
-                // collect candidates with bestScore
-                const candidates = conns.filter(id => prefixScore(nodes[id].address, targetAddr) === bestScore);
-                if (!candidates.length || bestScore <= prefixScore(node.address, targetAddr)) return { success: false, ops };
-                // tie-break randomly
-                const pick = candidates[Math.floor(Math.random() * candidates.length)];
-                current = pick;
-                hops++;
-                if (hops > maxHops) return { success: false, ops };
-            }
-            return { success: true, hops, ops };
-        }
-
-        // Dispatcher
-        const LHRP_VARIANTS = {
-            prefix: { fn: lhrp_prefix, name: "LHRP — Präfix-Score" },
-            level: { fn: lhrp_level, name: "LHRP — Level-Abstand" },
-            combined: { fn: lhrp_combined, name: "LHRP — Kombiniert (präfix+level)" },
-            localbfs: { fn: lhrp_localBFS, name: "LHRP — Lokale BFS-Auswahl" },
-            greedyRandom: { fn: lhrp_greedyRandom, name: "LHRP — Greedy mit Zufallstie-Break" }
-        };
-
-        // ---------------------- Vergleichsroutine ----------------------
-
-        function vergleiche(trials, nodeCount, extra, maxDepth, selectedAlgs, maxHops, localDepth) {
-            const nodes = buildRandomGraph(nodeCount, extra, maxDepth);
-            const adj = buildAdj(nodes);
-
-            // Prepare result structure
-            const results = {
+            const stats = {
                 network: { nodes: nodes.length, extraEdges: extra, maxDepth },
                 trials,
-                dijkstra: {
-                    name: "Dijkstra (BFS ungewichtet)",
-                    successCount: 0, totalHop: 0, totalOps: 0
-                },
-                lhrp: {}
+                algorithms: {}
             };
 
-            // initialize lhrp stats
-            for (const key of selectedAlgs) {
-                results.lhrp[key] = { name: LHRP_VARIANTS[key].name, successCount: 0, totalHop: 0, totalOps: 0 };
+            // init stats for each algorithm
+            for (const alg of selectedAlgs) {
+                stats.algorithms[alg] = { successCount: 0, totalHop: 0, totalOps: 0 };
             }
 
             for (let i = 0; i < trials; i++) {
-                // pick random distinct nodes a,b
                 let a = Math.floor(Math.random() * nodes.length);
                 let b = Math.floor(Math.random() * nodes.length);
                 if (a === b) { i--; continue; }
 
-                // Dijkstra / BFS
-                const d = bfs(adj, a, b);
-                results.dijkstra.totalOps += d.ops;
-                if (d.success) { results.dijkstra.successCount++; results.dijkstra.totalHop += d.hops; }
+                // BFS
+                if (selectedAlgs.includes('bfs')) {
+                    const r = bfs(adj, a, b);
+                    stats.algorithms['bfs'].totalOps += r.ops;
+                    if (r.success) { stats.algorithms['bfs'].successCount++; stats.algorithms['bfs'].totalHop += r.hops; }
+                }
 
-                // each LHRP variant
-                for (const key of selectedAlgs) {
-                    const variant = LHRP_VARIANTS[key];
-                    let res;
-                    if (key === "combined") {
-                        res = variant.fn(nodes, a, b, maxHops, { alpha: 1.0, beta: 0.6 });
-                    } else if (key === "localbfs") {
-                        res = variant.fn(nodes, a, b, maxHops, { localDepth });
-                    } else {
-                        res = variant.fn(nodes, a, b, maxHops);
-                    }
-                    results.lhrp[key].totalOps += res.ops;
-                    if (res.success) { results.lhrp[key].successCount++; results.lhrp[key].totalHop += res.hops; }
+                // Dijkstra
+                if (selectedAlgs.includes('dijkstra')) {
+                    const r = dijkstra(adj, a, b);
+                    stats.algorithms['dijkstra'].totalOps += r.ops;
+                    if (r.success) { stats.algorithms['dijkstra'].successCount++; stats.algorithms['dijkstra'].totalHop += r.hops; }
+                }
+
+                // A*
+                if (selectedAlgs.includes('astar')) {
+                    const r = aStar(adj, nodes, a, b);
+                    stats.algorithms['astar'].totalOps += r.ops;
+                    if (r.success) { stats.algorithms['astar'].successCount++; stats.algorithms['astar'].totalHop += r.hops; }
+                }
+
+                // LHRP (single, normal)
+                if (selectedAlgs.includes('lhrp')) {
+                    const r = lhrpRoute(nodes, adj, a, b, maxHops);
+                    stats.algorithms['lhrp'].totalOps += r.ops;
+                    if (r.success) { stats.algorithms['lhrp'].successCount++; stats.algorithms['lhrp'].totalHop += r.hops; }
                 }
             }
 
-            // finalize averages and success rates
-            results.dijkstra.successRate = results.dijkstra.successCount / trials;
-            results.dijkstra.avgHop = results.dijkstra.successCount ? (results.dijkstra.totalHop / results.dijkstra.successCount) : null;
-            results.dijkstra.avgOps = results.dijkstra.totalOps / trials;
-
-            for (const key of selectedAlgs) {
-                const r = results.lhrp[key];
-                r.successRate = r.successCount / trials;
-                r.avgHop = r.successCount ? (r.totalHop / r.successCount) : null;
-                r.avgOps = r.totalOps / trials;
-                // Clean up internal counters for output readability
-                delete r.successCount; delete r.totalHop; delete r.totalOps;
+            // finalize metrics
+            const out = { network: stats.network, trials: stats.trials, algorithms: {} };
+            for (const alg of selectedAlgs) {
+                const s = stats.algorithms[alg];
+                out.algorithms[alg] = {
+                    successRate: s.successCount / trials,
+                    avgHop: s.successCount ? (s.totalHop / s.successCount) : null,
+                    avgOps: s.totalOps / trials
+                };
             }
 
-            return { nodes, adj, summary: results };
+            // add basic graph diagnostics
+            const nodeDegrees = adj.map(a => a.length);
+            out.network.avgDegree = nodeDegrees.reduce((a, b) => a + b, 0) / nodeDegrees.length;
+
+            return out;
         }
 
-        // ---------------------- UI / Runner ----------------------
+        // ----------------- UI / Runner -----------------
 
         function runCompare() {
-            const trials = parseInt(document.getElementById("trials").value) || 1000;
-            const nodes = parseInt(document.getElementById("nodes").value) || 100;
-            const extras = parseInt(document.getElementById("extras").value) || 20;
-            const depth = parseInt(document.getElementById("depth").value) || 6;
-            const maxhops = parseInt(document.getElementById("maxhops").value) || 200;
-            const localDepth = parseInt(document.getElementById("localDepth").value) || 4;
+            const trials = Math.max(1, parseInt(document.getElementById("trials").value) || 2000);
+            const nodes = Math.max(2, parseInt(document.getElementById("nodes").value) || 200);
+            const extras = Math.max(0, parseInt(document.getElementById("extras").value) || 60);
+            const depth = Math.max(1, parseInt(document.getElementById("depth").value) || 6);
+            const maxhops = Math.max(1, parseInt(document.getElementById("maxhops").value) || 300);
 
             const checks = Array.from(document.querySelectorAll('.alg')).filter(c => c.checked).map(c => c.value);
-            if (!checks.length) {
-                document.getElementById("output").textContent = "Bitte mindestens eine LHRP-Variante auswählen.";
-                return;
-            }
+            if (!checks.length) { document.getElementById("output").textContent = "Bitte mindestens einen Algorithmus auswählen."; return; }
 
-            document.getElementById("output").textContent = "Berechnung läuft — Generiere Graph und führe Tests aus...";
+            document.getElementById("output").textContent = "Berechnung läuft... (UI bleibt responsiv)";
 
-            // slight timeout to let UI update
+            // slight timeout for UI refresh
             setTimeout(() => {
                 try {
-                    const startTime = Date.now();
-                    const res = vergleiche(trials, nodes, extras, depth, checks, maxhops, localDepth);
-                    const duration = (Date.now() - startTime) / 1000;
-                    // Summarize results in readable form
-                    const out = {
-                        network: { nodes: res.summary.network.nodes, extraEdges: res.summary.network.extraEdges, maxDepth: res.summary.network.maxDepth },
-                        trials: res.summary.trials,
-                        duration_seconds: duration,
-                        algorithms: {}
-                    };
-                    out.algorithms["Dijkstra (BFS)"] = {
-                        successRate: res.summary.dijkstra.successRate,
-                        avgHop: res.summary.dijkstra.avgHop,
-                        avgOps: res.summary.dijkstra.avgOps
-                    };
-                    for (const k of Object.keys(res.summary.lhrp)) {
-                        out.algorithms[res.summary.lhrp[k].name] = {
-                            successRate: res.summary.lhrp[k].successRate,
-                            avgHop: res.summary.lhrp[k].avgHop,
-                            avgOps: res.summary.lhrp[k].avgOps
-                        };
-                    }
-
-                    // Also provide small diagnostics about graph sizes
-                    const nodeDegrees = res.nodes.map((n, idx) => res.adj[idx].length);
-                    const avgDegree = nodeDegrees.reduce((a, b) => a + b, 0) / nodeDegrees.length;
-                    out.network.avgDegree = avgDegree;
-
-                    document.getElementById("output").textContent = JSON.stringify(out, null, 2);
+                    const start = performance.now();
+                    const res = vergleiche(trials, nodes, extras, depth, checks, maxhops);
+                    const duration = ((performance.now() - start) / 1000).toFixed(2);
+                    res.duration_seconds = parseFloat(duration);
+                    document.getElementById("output").textContent = JSON.stringify(res, null, 2);
                 } catch (e) {
-                    document.getElementById("output").textContent = "Fehler bei der Berechnung: " + e.toString();
+                    document.getElementById("output").textContent = "Fehler: " + e.toString();
                 }
-            }, 50);
+            }, 30);
         }
 
     </script>
