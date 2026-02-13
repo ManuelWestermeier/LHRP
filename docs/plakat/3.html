@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LHRP Tree Simulator — Korrekte Implementation + Benchmark</title>
+    <style>
+        :root {
+            --bg: #0f1724;
+            --panel: #0b1220;
+            --card: #0f1a2b;
+            --accent: #38bdf8;
+            --muted: #9aa7b2;
+            --ok: #86efac;
+            --error: #f87171;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: linear-gradient(180deg, #071129 0%, #071827 100%);
+            color: #e6eef6;
+            overflow: hidden;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 16px;
+            padding: 16px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, var(--panel), #06101a);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(2, 6, 23, .8);
+            overflow: auto;
+            border: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 16px 0;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .algo-badge {
+            font-size: 12px;
+            background: rgba(56, 189, 248, .15);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, .3);
+        }
+
+        .section {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(255, 255, 255, .02);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, .04);
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin: 12px 0 6px 0;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            background: rgba(255, 255, 255, .03);
+            color: #e6eef6;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, .1);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 0;
+            background: linear-gradient(135deg, var(--accent), #0ea5e9);
+            color: #04273a;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, .3);
+        }
+
+        .small-btn {
+            width: auto;
+            padding: 8px 16px;
+            margin: 4px 8px 4px 0;
+            background: #1f2b3a;
+            color: var(--ok);
+            border: 1px solid rgba(255, 255, 255, .05);
+            font-size: 13px;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .info-box {
+            background: rgba(134, 239, 172, .08);
+            border: 1px solid rgba(134, 239, 172, .15);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: var(--ok);
+        }
+
+        .warning-box {
+            background: rgba(248, 113, 113, .08);
+            border: 1px solid rgba(248, 113, 113, .15);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: var(--error);
+        }
+
+        .svg-wrap {
+            background: linear-gradient(180deg, #071827 0%, #01111a 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, .8);
+            border: 1px solid rgba(255, 255, 255, .05);
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Node styling */
+        .node circle {
+            fill: #0b4a6f;
+            stroke: #071827;
+            stroke-width: 2;
+            transition: all 0.3s;
+        }
+
+        .node.highlight circle {
+            fill: var(--accent);
+            stroke: #0ea5e9;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, .5));
+        }
+
+        .node.selected circle {
+            fill: var(--ok);
+            stroke: #4ade80;
+        }
+
+        .node.start circle {
+            fill: var(--ok);
+            stroke: #4ade80;
+            stroke-width: 3;
+        }
+
+        .node.end circle {
+            fill: var(--accent);
+            stroke: #0ea5e9;
+            stroke-width: 3;
+        }
+
+        .node text {
+            font-size: 11px;
+            font-weight: 600;
+            fill: #e6eef6;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* Edge styling */
+        .tree-edge {
+            stroke: rgba(56, 189, 248, .4);
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        .extra-edge {
+            stroke: rgba(134, 239, 172, .3);
+            stroke-width: 1.5;
+            stroke-dasharray: 5 3;
+            stroke-linecap: round;
+        }
+
+        .routing-path {
+            stroke: var(--ok);
+            stroke-width: 3;
+            stroke-linecap: round;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.7;
+            }
+        }
+
+        /* Status panel */
+        .status-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(11, 18, 32, .95);
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .status-value {
+            color: #e6eef6;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .log-box {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, .3);
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: var(--muted);
+            margin-right: 8px;
+        }
+
+        .log-node {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .log-action {
+            color: var(--ok);
+        }
+
+        .log-error {
+            color: var(--error);
+        }
+
+        /* Tree control buttons */
+        .tree-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .tree-btn {
+            background: rgba(11, 18, 32, .9);
+            border: 1px solid rgba(255, 255, 255, .1);
+            color: #e6eef6;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tree-btn:hover {
+            background: rgba(56, 189, 248, .2);
+            border-color: var(--accent);
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app">
+        <div class="panel">
+            <h1>
+                <i class="fas fa-project-diagram"></i>
+                LHRP Tree Simulator
+                <span class="algo-badge">Korrekte Implementation + Benchmark</span>
+            </h1>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-tree"></i>
+                    Baum Generierung
+                </div>
+                <label>Anzahl Knoten</label>
+                <input id="nodeCount" type="number" min="2" max="2000" value="100">
+
+                <label>Extra-Verbindungen</label>
+                <input id="extraEdges" type="number" min="0" max="500" value="8">
+
+                <label>Maximale Tiefe</label>
+                <input id="maxDepth" type="number" min="2" max="12" value="6">
+
+                <div class="controls-row">
+                    <button id="generateTree" class="small-btn">
+                        <i class="fas fa-random"></i> Generieren
+                    </button>
+                    <button id="generateBalanced" class="small-btn">
+                        <i class="fas fa-sitemap"></i> Balanciert
+                    </button>
+                    <button id="runBenchmark" class="small-btn">
+                        <i class="fas fa-chart-line"></i> Benchmark (Dijkstra vs LHRP)
+                    </button>
+                    <button id="centerTree" class="small-btn">
+                        <i class="fas fa-expand-alt"></i> Zentrieren
+                    </button>
+                </div>
+
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    Vor dem Rendern werden Dijkstra- und LHRP-Pfade berechnet und die Graphdaten neu erzeugt.
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-cogs"></i>
+                    LHRP Simulation
+                </div>
+
+                <label>Start Knoten (Sender)</label>
+                <select id="startNode"></select>
+
+                <label>Ziel Knoten (Empfänger)</label>
+                <select id="endNode"></select>
+
+                <label>Paket Inhalt</label>
+                <input id="packetContent" type="text" value="Hello LHRP!" placeholder="Nachricht">
+
+                <div class="controls-row">
+                    <button id="simulateLHRP">
+                        <i class="fas fa-play"></i> LHRP Simulation starten
+                    </button>
+                    <button id="stopSimulation" class="small-btn">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    Simuliert den echten LHRP-Routing-Algorithmus mit Prefix-Matching
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-edit"></i>
+                    Manuelle Bearbeitung
+                </div>
+
+                <label>Aktueller Knoten</label>
+                <select id="currentNode"></select>
+
+                <div class="controls-row">
+                    <button id="addNode" class="small-btn">
+                        <i class="fas fa-plus"></i> Kind hinzufügen
+                    </button>
+                    <button id="removeNode" class="small-btn">
+                        <i class="fas fa-trash"></i> Löschen
+                    </button>
+                    <button id="addExtraEdge" class="small-btn">
+                        <i class="fas fa-link"></i> Extra-Verbindung
+                    </button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-save"></i>
+                    Speichern & Laden
+                </div>
+
+                <input id="saveName" type="text" placeholder="Name für Konfiguration">
+
+                <div class="controls-row">
+                    <button id="saveConfig" class="small-btn">
+                        <i class="fas fa-save"></i> Speichern
+                    </button>
+                    <button id="loadConfig" class="small-btn">
+                        <i class="fas fa-folder-open"></i> Laden
+                    </button>
+                    <button id="exportJSON" class="small-btn">
+                        <i class="fas fa-file-export"></i> Export
+                    </button>
+                </div>
+
+                <div id="savedConfigs" class="log-box" style="max-height: 120px;"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-list"></i>
+                    LHRP Algorithmus Info
+                </div>
+
+                <div class="warning-box">
+                    <strong>Korrekte LHRP-Logik:</strong><br>
+                    1. Prefix-Matching (positive/negative scores)<br>
+                    2. Lokale Entscheidung an jedem Knoten<br>
+                    3. Kein globaler Pfad vorberechnet<br>
+                    4. Child/Parent Routing Regeln
+                </div>
+
+                <div class="status-item">
+                    <span class="status-label">Aktuelle Knoten:</span>
+                    <span class="status-value" id="currentNodeCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Tree Edges:</span>
+                    <span class="status-value" id="treeEdgeCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Extra Edges:</span>
+                    <span class="status-value" id="extraEdgeCount">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="svg-wrap">
+            <svg id="treeSVG"></svg>
+
+            <div class="tree-controls">
+                <button class="tree-btn" id="zoomIn">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+                <button class="tree-btn" id="zoomOut">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <button class="tree-btn" id="resetView">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div class="status-panel">
+                <div class="section-title" style="margin-bottom: 8px;">
+                    <i class="fas fa-terminal"></i>
+                    LHRP Routing Log
+                </div>
+                <div id="routingLog" class="log-box"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Data structures ---
+        class LHRPNode {
+            constructor(id, address = []) {
+                this.id = id;
+                this.address = address;
+                this.parent = null;
+                this.children = [];
+                this.extraConnections = [];
+                this.x = 0;
+                this.y = 0;
+                this.level = address.length;
+                this.width = 0; // For layout calculations
+            }
+
+            getConnectionScore(targetAddress) {
+                const minLen = Math.min(this.address.length, targetAddress.length);
+                let positive = 0;
+
+                while (positive < minLen &&
+                    this.address[positive] === targetAddress[positive]) {
+                    positive++;
+                }
+
+                const negative = this.address.length - positive;
+                return { positive, negative, index: positive - negative };
+            }
+
+            isChildOf(otherAddress) {
+                if (this.address.length <= otherAddress.length) return false;
+                for (let i = 0; i < otherAddress.length; i++) {
+                    if (this.address[i] !== otherAddress[i]) return false;
+                }
+                return true;
+            }
+        }
+
+        // --- Utility functions for offline generation & benchmarking ---
+        function buildRandomTreeStatic(nodeCount, extraCount, maxDepth) {
+            const nodes = [];
+            const root = new LHRPNode(0, [0]);
+            nodes.push(root);
+
+            for (let i = 1; i < nodeCount; i++) {
+                const availableParents = nodes.filter(n => n.level < maxDepth - 1 && n.children.length < 4);
+                if (availableParents.length === 0) break;
+                const parent = availableParents[Math.floor(Math.random() * availableParents.length)];
+                const address = [...parent.address, parent.children.length];
+                const node = new LHRPNode(i, address);
+                node.parent = parent.id;
+                parent.children.push(i);
+                nodes.push(node);
+            }
+
+            // Create extra edges
+            for (let i = 0; i < extraCount; i++) {
+                if (nodes.length < 3) break;
+                let attempts = 0;
+                while (attempts < 200) {
+                    attempts++;
+                    const a = Math.floor(Math.random() * nodes.length);
+                    const b = Math.floor(Math.random() * nodes.length);
+                    if (a === b) continue;
+                    const nodeA = nodes[a];
+                    const nodeB = nodes[b];
+                    if (nodeA.parent === b || nodeB.parent === a) continue;
+                    if (nodeA.children.includes(b) || nodeB.children.includes(a)) continue;
+                    if (nodeA.extraConnections.includes(b) || nodeB.extraConnections.includes(a)) continue;
+                    const distance = Math.abs(nodeA.level - nodeB.level);
+                    if (distance < 2) continue;
+                    nodeA.extraConnections.push(b);
+                    nodeB.extraConnections.push(a);
+                    break;
+                }
+            }
+
+            return nodes;
+        }
+
+        function buildAdjList(nodes) {
+            const adj = new Map();
+            nodes.forEach(n => adj.set(n.id, new Set()));
+            nodes.forEach(n => {
+                if (n.parent !== null) {
+                    adj.get(n.id).add(n.parent);
+                    adj.get(n.parent).add(n.id);
+                }
+                n.children.forEach(c => {
+                    adj.get(n.id).add(c);
+                    adj.get(c).add(n.id);
+                });
+                n.extraConnections.forEach(e => {
+                    adj.get(n.id).add(e);
+                    adj.get(e).add(n.id);
+                });
+            });
+            return adj;
+        }
+
+        function dijkstraHopPath(nodes, startId, endId) {
+            // For hop-count shortest path (unweighted) use BFS
+            const adj = buildAdjList(nodes);
+            const queue = [startId];
+            const prev = new Map();
+            prev.set(startId, null);
+            const visited = new Set([startId]);
+            while (queue.length) {
+                const u = queue.shift();
+                if (u === endId) break;
+                for (const v of adj.get(u)) {
+                    if (visited.has(v)) continue;
+                    visited.add(v);
+                    prev.set(v, u);
+                    queue.push(v);
+                }
+            }
+
+            if (!prev.has(endId)) return null; // no path
+            const path = [];
+            let cur = endId;
+            while (cur !== null) {
+                path.push(cur);
+                cur = prev.get(cur);
+            }
+            path.reverse();
+            return path;
+        }
+
+        function lhrpDecisionStatic(nodes, currentId, targetId) {
+            const currentNode = nodes[currentId];
+            const targetAddress = nodes[targetId].address;
+
+            if (compareAddresses(currentNode.address, targetAddress)) {
+                return null;
+            }
+
+            const connections = [];
+            if (currentNode.parent !== null) connections.push({ id: currentNode.parent, address: nodes[currentNode.parent].address, type: 'parent' });
+            currentNode.children.forEach(cid => connections.push({ id: cid, address: nodes[cid].address, type: 'child' }));
+            currentNode.extraConnections.forEach(eid => connections.push({ id: eid, address: nodes[eid].address, type: 'extra' }));
+
+            const scored = connections.map(conn => {
+                const s = getConnectionScoreStatic(conn.address, targetAddress);
+                return { ...conn, score: s.index, positive: s.positive, negative: s.negative };
+            });
+
+            scored.sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return b.address.length - a.address.length;
+            });
+
+            const best = scored[0];
+            if (!best) return null;
+
+            const targetIsChild = currentNode.isChildOf(targetAddress);
+            const currentScore = currentNode.getConnectionScore(targetAddress);
+
+            if (targetIsChild) {
+                const bestIsChild = best.type === 'child';
+                if (!bestIsChild || best.score < currentScore.index) {
+                    const childConnections = connections.filter(c => c.type === 'child');
+                    for (const child of childConnections) {
+                        if (isPrefix(child.address, targetAddress)) return child.id;
+                    }
+                }
+            }
+
+            if (best.score <= currentScore.index) return null;
+            return best.id;
+        }
+
+        function getConnectionScoreStatic(address1, address2) {
+            const minLen = Math.min(address1.length, address2.length);
+            let positive = 0;
+            while (positive < minLen && address1[positive] === address2[positive]) positive++;
+            const negative = address1.length - positive;
+            return { positive, negative, index: positive - negative };
+        }
+
+        function compareAddresses(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+            return true;
+        }
+
+        function isPrefix(prefix, address) {
+            if (prefix.length > address.length) return false;
+            for (let i = 0; i < prefix.length; i++) if (prefix[i] !== address[i]) return false;
+            return true;
+        }
+
+        function lhrpPathStatic(nodes, startId, endId, maxHops = 1000) {
+            const visited = new Set();
+            let current = startId;
+            const path = [current];
+            for (let steps = 0; steps < maxHops; steps++) {
+                if (current === endId) break;
+                const next = lhrpDecisionStatic(nodes, current, endId);
+                if (next === null) return null; // no route
+                if (visited.has(next)) return null; // loop
+                visited.add(next);
+                path.push(next);
+                current = next;
+            }
+            if (path[path.length - 1] !== endId) return null;
+            return path;
+        }
+
+        // --- Simulator class (UI + rendering) ---
+        class LHRPSimulator {
+            constructor() {
+                this.nodes = [];
+                this.root = null;
+                this.selectedNode = null;
+                this.startNode = null;
+                this.endNode = null;
+                this.running = false;
+                this.logEntries = [];
+                this.svg = document.getElementById('treeSVG');
+                this.nodeCountEl = document.getElementById('currentNodeCount');
+                this.treeEdgeCountEl = document.getElementById('treeEdgeCount');
+                this.extraEdgeCountEl = document.getElementById('extraEdgeCount');
+                this.routingLogEl = document.getElementById('routingLog');
+                this.savedConfigsEl = document.getElementById('savedConfigs');
+
+                this.viewport = { x: 0, y: 0, scale: 1, width: 1200, height: 800 };
+                this.init();
+            }
+
+            init() {
+                document.getElementById('generateTree').addEventListener('click', () => this.generateRandomTree());
+                document.getElementById('generateBalanced').addEventListener('click', () => this.generateBalancedTree());
+                document.getElementById('centerTree').addEventListener('click', () => this.centerTree());
+                document.getElementById('simulateLHRP').addEventListener('click', () => this.simulateLHRP());
+                document.getElementById('stopSimulation').addEventListener('click', () => this.stopSimulation());
+                document.getElementById('addNode').addEventListener('click', () => this.addNode());
+                document.getElementById('removeNode').addEventListener('click', () => this.removeNode());
+                document.getElementById('addExtraEdge').addEventListener('click', () => this.addExtraEdge());
+                document.getElementById('saveConfig').addEventListener('click', () => this.saveConfig());
+                document.getElementById('loadConfig').addEventListener('click', () => this.loadConfig());
+                document.getElementById('exportJSON').addEventListener('click', () => this.exportJSON());
+                document.getElementById('runBenchmark').addEventListener('click', () => this.runBenchmarkUI());
+
+                document.getElementById('zoomIn').addEventListener('click', () => this.zoom(1.2));
+                document.getElementById('zoomOut').addEventListener('click', () => this.zoom(0.8));
+                document.getElementById('resetView').addEventListener('click', () => this.resetView());
+
+                this.svg.addEventListener('wheel', (e) => { e.preventDefault(); const delta = e.deltaY > 0 ? 0.9 : 1.1; this.zoom(delta); });
+                let isPanning = false, startX, startY;
+                this.svg.addEventListener('mousedown', (e) => { isPanning = true; startX = e.clientX; startY = e.clientY; this.svg.style.cursor = 'grabbing'; });
+                this.svg.addEventListener('mousemove', (e) => { if (!isPanning) return; const dx = (e.clientX - startX) / this.viewport.scale; const dy = (e.clientY - startY) / this.viewport.scale; this.viewport.x -= dx; this.viewport.y -= dy; startX = e.clientX; startY = e.clientY; this.updateViewport(); });
+                this.svg.addEventListener('mouseup', () => { isPanning = false; this.svg.style.cursor = 'default'; });
+                this.svg.addEventListener('mouseleave', () => { isPanning = false; this.svg.style.cursor = 'default'; });
+
+                this.generateBalancedTree();
+                this.loadSavedConfigs();
+                this.updateViewport();
+            }
+
+            generateRandomTree() {
+                const nodeCount = parseInt(document.getElementById('nodeCount').value) || 100;
+                const extraCount = parseInt(document.getElementById('extraEdges').value) || 8;
+                const maxDepth = parseInt(document.getElementById('maxDepth').value) || 6;
+
+                // build static then assign to this.nodes
+                this.nodes = buildRandomTreeStatic(nodeCount, extraCount, maxDepth);
+                this.root = this.nodes[0];
+                this.layoutTree();
+                // compute benchmark data for this topology before render
+                this.computeTopologyStats();
+                this.render();
+                this.updateUI();
+                this.centerTree();
+            }
+
+            generateBalancedTree() {
+                this.nodes = [];
+                this.root = new LHRPNode(0, [0]);
+                this.nodes.push(this.root);
+
+                const maxDepth = parseInt(document.getElementById('maxDepth').value) || 4;
+                const branchingFactor = 3;
+                let nextId = 1;
+                const queue = [{ node: this.root, depth: 0 }];
+
+                while (queue.length > 0) {
+                    const { node, depth } = queue.shift();
+                    if (depth >= maxDepth) continue;
+                    for (let i = 0; i < branchingFactor; i++) {
+                        const address = [...node.address, i];
+                        const child = new LHRPNode(nextId, address);
+                        child.parent = node.id;
+                        node.children.push(nextId);
+                        this.nodes.push(child);
+                        queue.push({ node: child, depth: depth + 1 });
+                        nextId++;
+                    }
+                    if (nextId > 300) break;
+                }
+
+                this.generateExtraEdges(8);
+                this.layoutTree();
+                this.computeTopologyStats();
+                this.render();
+                this.updateUI();
+                this.centerTree();
+            }
+
+            generateExtraEdges(count) {
+                this.nodes.forEach(node => node.extraConnections = node.extraConnections || []);
+                for (let i = 0; i < count; i++) {
+                    if (this.nodes.length < 3) break;
+                    let attempts = 0;
+                    while (attempts < 100) {
+                        attempts++;
+                        const a = Math.floor(Math.random() * this.nodes.length);
+                        const b = Math.floor(Math.random() * this.nodes.length);
+                        if (a === b) continue;
+                        const nodeA = this.nodes[a];
+                        const nodeB = this.nodes[b];
+                        if (nodeA.parent === b || nodeB.parent === a) continue;
+                        if (nodeA.children.includes(b) || nodeB.children.includes(a)) continue;
+                        if (nodeA.extraConnections.includes(b) || nodeB.extraConnections.includes(a)) continue;
+                        const distance = Math.abs(nodeA.level - nodeB.level);
+                        if (distance < 2) continue;
+                        nodeA.extraConnections.push(b);
+                        nodeB.extraConnections.push(a);
+                        break;
+                    }
+                }
+            }
+
+            layoutTree() {
+                if (!this.nodes.length) return;
+                this.calculateSubtreeWidths(this.root.id);
+                this.assignPositions(this.root.id, 600, 80, 0);
+                this.calculateBounds();
+            }
+
+            calculateSubtreeWidths(nodeId) {
+                const node = this.nodes[nodeId];
+                if (!node) return 80;
+                if (node.children.length === 0) { node.width = 80; return node.width; }
+                let totalWidth = 0;
+                for (const childId of node.children) totalWidth += this.calculateSubtreeWidths(childId);
+                totalWidth += Math.max(0, node.children.length - 1) * 40;
+                node.width = totalWidth;
+                return totalWidth;
+            }
+
+            assignPositions(nodeId, x, y, offset) {
+                const node = this.nodes[nodeId];
+                if (!node) return;
+                node.x = x + offset; node.y = y;
+                if (node.children.length === 0) return;
+                let currentX = x - node.width / 2 + offset;
+                const childSpacing = 60;
+                for (const childId of node.children) {
+                    const child = this.nodes[childId];
+                    const childWidth = child.width || 80;
+                    this.assignPositions(childId, currentX + childWidth / 2, y + 100, 0);
+                    currentX += childWidth + childSpacing;
+                }
+            }
+
+            calculateBounds() {
+                if (this.nodes.length === 0) return;
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                this.nodes.forEach(node => { minX = Math.min(minX, node.x); maxX = Math.max(maxX, node.x); minY = Math.min(minY, node.y); maxY = Math.max(maxY, node.y); });
+                this.treeBounds = { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+            }
+
+            centerTree() {
+                if (!this.treeBounds) this.calculateBounds();
+                const targetWidth = this.viewport.width * 0.8; const targetHeight = this.viewport.height * 0.8;
+                const scaleX = targetWidth / Math.max(this.treeBounds.width, 100);
+                const scaleY = targetHeight / Math.max(this.treeBounds.height, 100);
+                const scale = Math.min(scaleX, scaleY, 1.5);
+                this.viewport.scale = scale;
+                const centerX = (this.treeBounds.minX + this.treeBounds.maxX) / 2;
+                const centerY = (this.treeBounds.minY + this.treeBounds.maxY) / 2;
+                this.viewport.x = this.viewport.width / 2 - centerX * scale;
+                this.viewport.y = this.viewport.height / 2 - centerY * scale;
+                this.updateViewport();
+                this.render();
+            }
+
+            updateViewport() {
+                this.svg.setAttribute('viewBox', `${this.viewport.x} ${this.viewport.y} ${this.viewport.width / this.viewport.scale} ${this.viewport.height / this.viewport.scale}`);
+            }
+
+            zoom(factor) { this.viewport.scale *= factor; this.viewport.scale = Math.max(0.1, Math.min(5, this.viewport.scale)); this.updateViewport(); this.render(); }
+            resetView() { this.viewport.scale = 1; this.viewport.x = 0; this.viewport.y = 0; this.centerTree(); }
+
+            render() {
+                while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
+                const svgNS = "http://www.w3.org/2000/svg";
+                const edgesGroup = document.createElementNS(svgNS, 'g'); edgesGroup.setAttribute('class', 'edges'); this.svg.appendChild(edgesGroup);
+                const nodesGroup = document.createElementNS(svgNS, 'g'); nodesGroup.setAttribute('class', 'nodes'); this.svg.appendChild(nodesGroup);
+
+                // extra edges
+                this.nodes.forEach(node => {
+                    (node.extraConnections || []).forEach(targetId => {
+                        if (targetId > node.id) {
+                            const target = this.nodes[targetId];
+                            if (!target) return;
+                            const line = document.createElementNS(svgNS, 'line');
+                            line.setAttribute('x1', node.x.toString()); line.setAttribute('y1', node.y.toString()); line.setAttribute('x2', target.x.toString()); line.setAttribute('y2', target.y.toString()); line.setAttribute('class', 'extra-edge');
+                            edgesGroup.appendChild(line);
+                        }
+                    });
+                });
+
+                // tree edges
+                this.nodes.forEach(node => {
+                    if (node.parent !== null) {
+                        const parent = this.nodes[node.parent];
+                        if (!parent) return;
+                        const line = document.createElementNS(svgNS, 'line');
+                        line.setAttribute('x1', parent.x.toString()); line.setAttribute('y1', parent.y.toString()); line.setAttribute('x2', node.x.toString()); line.setAttribute('y2', node.y.toString()); line.setAttribute('class', 'tree-edge');
+                        edgesGroup.appendChild(line);
+                    }
+                });
+
+                // nodes
+                this.nodes.forEach(node => {
+                    const group = document.createElementNS(svgNS, 'g'); group.setAttribute('class', 'node'); group.setAttribute('data-id', node.id.toString());
+                    if (this.selectedNode === node.id) group.classList.add('selected');
+                    if (this.startNode === node.id) group.classList.add('start');
+                    if (this.endNode === node.id) group.classList.add('end');
+                    const circle = document.createElementNS(svgNS, 'circle'); circle.setAttribute('cx', node.x.toString()); circle.setAttribute('cy', node.y.toString()); circle.setAttribute('r', '16');
+                    const text = document.createElementNS(svgNS, 'text'); text.setAttribute('x', node.x.toString()); text.setAttribute('y', (node.y + 5).toString()); text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '10'); text.textContent = node.address.join('.');
+                    const idText = document.createElementNS(svgNS, 'text'); idText.setAttribute('x', node.x.toString()); idText.setAttribute('y', (node.y + 22).toString()); idText.setAttribute('text-anchor', 'middle'); idText.setAttribute('font-size', '9'); idText.setAttribute('fill', '#9aa7b2'); idText.textContent = `#${node.id}`;
+                    group.appendChild(circle); group.appendChild(text); group.appendChild(idText);
+                    group.addEventListener('click', (e) => { e.stopPropagation(); this.selectNode(node.id); });
+                    nodesGroup.appendChild(group);
+                });
+
+                this.nodeCountEl.textContent = this.nodes.length;
+                this.treeEdgeCountEl.textContent = this.nodes.filter(n => n.parent !== null).length;
+                this.extraEdgeCountEl.textContent = this.nodes.reduce((sum, n) => sum + (n.extraConnections ? n.extraConnections.length : 0), 0) / 2;
+            }
+
+            selectNode(nodeId) { this.selectedNode = nodeId; document.getElementById('currentNode').value = nodeId; this.render(); }
+
+            updateUI() {
+                const nodeOptions = this.nodes.map(node => `<option value="${node.id}">#${node.id} (${node.address.join('.')})</option>`).join('');
+                document.getElementById('currentNode').innerHTML = nodeOptions;
+                document.getElementById('startNode').innerHTML = nodeOptions;
+                document.getElementById('endNode').innerHTML = nodeOptions;
+                if (this.selectedNode !== null) document.getElementById('currentNode').value = this.selectedNode;
+                if (this.startNode !== null) document.getElementById('startNode').value = this.startNode;
+                if (this.endNode !== null) document.getElementById('endNode').value = this.endNode;
+            }
+
+            addNode() {
+                if (this.selectedNode === null) { this.log('Bitte zuerst einen Knoten auswählen', 'error'); return; }
+                const parent = this.nodes[this.selectedNode]; const newId = this.nodes.length; const address = [...parent.address, parent.children.length]; const newNode = new LHRPNode(newId, address); newNode.parent = parent.id; parent.children.push(newId); this.nodes.push(newNode);
+                this.layoutTree(); this.centerTree(); this.updateUI(); this.log(`Knoten #${newId} als Kind von #${parent.id} hinzugefügt`);
+            }
+
+            removeNode() {
+                if (this.selectedNode === null || this.selectedNode === 0) { this.log('Root-Knoten kann nicht gelöscht werden', 'error'); return; }
+                const node = this.nodes[this.selectedNode]; if (node.parent !== null) { const parent = this.nodes[node.parent]; parent.children = parent.children.filter(id => id !== node.id); }
+                this.nodes.forEach(n => { n.extraConnections = (n.extraConnections || []).filter(id => id !== node.id); });
+                this.nodes.splice(this.selectedNode, 1);
+                this.nodes.forEach((n, index) => { n.id = index; if (n.parent !== null && n.parent >= this.selectedNode) n.parent--; n.children = n.children.map(id => id > this.selectedNode ? id - 1 : id); n.extraConnections = (n.extraConnections || []).map(id => id > this.selectedNode ? id - 1 : id); });
+                this.root = this.nodes[0]; this.selectedNode = null; this.layoutTree(); this.centerTree(); this.updateUI(); this.log(`Knoten #${node.id} gelöscht`);
+            }
+
+            addExtraEdge() {
+                if (this.selectedNode === null) { this.log('Bitte zuerst einen Knoten auswählen', 'error'); return; }
+                const otherNodes = this.nodes.filter(n => n.id !== this.selectedNode).filter(n => !this.nodes[this.selectedNode].children.includes(n.id)).filter(n => !((this.nodes[this.selectedNode].extraConnections || []).includes(n.id))).filter(n => n.parent !== this.selectedNode);
+                if (otherNodes.length === 0) { this.log('Keine verfügbaren Knoten für Extra-Verbindung', 'error'); return; }
+                const randomNode = otherNodes[Math.floor(Math.random() * otherNodes.length)]; this.nodes[this.selectedNode].extraConnections.push(randomNode.id); randomNode.extraConnections.push(this.selectedNode); this.render(); this.log(`Extra-Verbindung zwischen #${this.selectedNode} und #${randomNode.id} hinzugefügt`);
+            }
+
+            async simulateLHRP() {
+                if (this.running) return; const startId = parseInt(document.getElementById('startNode').value); const endId = parseInt(document.getElementById('endNode').value);
+                if (isNaN(startId) || isNaN(endId)) { this.log('Bitte Start- und Zielknoten auswählen', 'error'); return; }
+                if (startId === endId) { this.log('Start und Ziel sind identisch', 'error'); return; }
+                this.startNode = startId; this.endNode = endId; this.running = true; this.clearLog(); this.log('=== LHRP Routing Simulation startet ===', 'info'); this.log(`Von: #${startId} (${this.nodes[startId].address.join('.')})`); this.log(`Nach: #${endId} (${this.nodes[endId].address.join('.')})`);
+                let current = startId; const visited = new Set(); const path = [current];
+                while (current !== endId) {
+                    visited.add(current); this.highlightNode(current);
+                    const connections = this.getConnections(current);
+                    const nextHop = this.lhrpDecision(current, endId, connections);
+                    await this.delay(200);
+                    if (nextHop === null) { this.log(`Routing-Fehler an Knoten #${current}: Kein nächster Hop gefunden`, 'error'); break; }
+                    if (visited.has(nextHop)) { this.log(`Loop erkannt bei Knoten #${nextHop}`, 'error'); break; }
+                    this.drawRoutingPath(current, nextHop);
+                    this.log(`Knoten #${current}: Weiterleitung an #${nextHop} (${this.nodes[nextHop].address.join('.')})`);
+                    current = nextHop; path.push(current);
+                    if (path.length > 200) { this.log('Maximale Hop-Anzahl erreicht', 'error'); break; }
+                    await this.delay(120);
+                }
+                if (current === endId) { this.log(`Paket erfolgreich zugestellt an #${endId}`, 'success'); this.log(`Pfad: ${path.map(id => `#${id}`).join(' → ')}`); this.log(`Hop-Anzahl: ${path.length - 1}`); }
+                this.running = false;
+            }
+
+            getConnections(nodeId) {
+                const node = this.nodes[nodeId]; const connections = [];
+                if (node.parent !== null) connections.push({ id: node.parent, address: this.nodes[node.parent].address, type: 'parent' });
+                (node.children || []).forEach(childId => connections.push({ id: childId, address: this.nodes[childId].address, type: 'child' }));
+                (node.extraConnections || []).forEach(extraId => connections.push({ id: extraId, address: this.nodes[extraId].address, type: 'extra' }));
+                return connections;
+            }
+
+            lhrpDecision(currentId, targetId, connections) {
+                const currentNode = this.nodes[currentId]; const targetAddress = this.nodes[targetId].address;
+                if (this.compareAddresses(currentNode.address, targetAddress)) return null;
+                const scoredConnections = connections.map(conn => { const score = this.getConnectionScore(conn.address, targetAddress); return { ...conn, score: score.index, positive: score.positive, negative: score.negative }; });
+                scoredConnections.sort((a, b) => { if (b.score !== a.score) return b.score - a.score; return b.address.length - a.address.length; });
+                const bestConnection = scoredConnections[0]; if (!bestConnection) return null;
+                const targetIsChild = currentNode.isChildOf(targetAddress);
+                const currentScore = currentNode.getConnectionScore(targetAddress);
+                if (targetIsChild) {
+                    const bestIsChild = bestConnection.type === 'child';
+                    if (!bestIsChild || bestConnection.score < currentScore.index) {
+                        const childConnections = connections.filter(c => c.type === 'child');
+                        for (const child of childConnections) {
+                            if (this.isPrefix(child.address, targetAddress)) return child.id;
+                        }
+                    }
+                }
+                if (bestConnection.score <= currentScore.index) return null;
+                return bestConnection.id;
+            }
+
+            getConnectionScore(address1, address2) {
+                const minLen = Math.min(address1.length, address2.length);
+                let positive = 0; while (positive < minLen && address1[positive] === address2[positive]) positive++;
+                const negative = address1.length - positive; return { positive, negative, index: positive - negative };
+            }
+
+            compareAddresses(addr1, addr2) { return addr1.length === addr2.length && addr1.every((val, idx) => val === addr2[idx]); }
+            isPrefix(prefix, address) { if (prefix.length > address.length) return false; for (let i = 0; i < prefix.length; i++) if (prefix[i] !== address[i]) return false; return true; }
+
+            highlightNode(nodeId) { const nodes = this.svg.querySelectorAll('.node'); nodes.forEach(node => node.classList.remove('highlight')); const node = this.svg.querySelector(`.node[data-id="${nodeId}"]`); if (node) node.classList.add('highlight'); }
+
+            drawRoutingPath(fromId, toId) { const fromNode = this.nodes[fromId]; const toNode = this.nodes[toId]; const svgNS = "http://www.w3.org/2000/svg"; const line = document.createElementNS(svgNS, 'line'); line.setAttribute('x1', fromNode.x.toString()); line.setAttribute('y1', fromNode.y.toString()); line.setAttribute('x2', toNode.x.toString()); line.setAttribute('y2', toNode.y.toString()); line.setAttribute('class', 'routing-path'); this.svg.appendChild(line); setTimeout(() => { if (line.parentNode === this.svg) this.svg.removeChild(line); }, 2000); }
+
+            log(message, type = 'info') {
+                const time = new Date().toLocaleTimeString('de-DE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const entry = document.createElement('div'); entry.className = 'log-entry'; let content = `<span class="log-time">[${time}]</span>`;
+                if (type === 'error') content += `<span class="log-error">${message}</span>`; else if (type === 'success') content += `<span class="log-action">${message}</span>`; else content += message;
+                entry.innerHTML = content; this.routingLogEl.appendChild(entry); this.routingLogEl.scrollTop = this.routingLogEl.scrollHeight;
+                if (this.routingLogEl.children.length > 200) this.routingLogEl.removeChild(this.routingLogEl.firstChild);
+                this.logEntries.push({ time, message, type });
+            }
+
+            clearLog() { this.routingLogEl.innerHTML = ''; this.logEntries = []; }
+            stopSimulation() { this.running = false; this.log('Simulation gestoppt', 'info'); const nodes = this.svg.querySelectorAll('.node'); nodes.forEach(node => node.classList.remove('highlight')); }
+            delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+            saveConfig() {
+                const name = document.getElementById('saveName').value.trim(); if (!name) { this.log('Bitte Namen eingeben', 'error'); return; }
+                const config = { nodes: this.nodes.map(node => ({ id: node.id, address: node.address, parent: node.parent, children: node.children, extraConnections: node.extraConnections, x: node.x, y: node.y })), timestamp: new Date().toISOString() };
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}'); saved[name] = config; localStorage.setItem('lhrpConfigs', JSON.stringify(saved)); this.log(`Konfiguration "${name}" gespeichert`, 'success'); this.loadSavedConfigs();
+            }
+
+            loadConfig() {
+                const name = document.getElementById('saveName').value.trim(); if (!name) { this.log('Bitte Namen eingeben', 'error'); return; }
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}'); const config = saved[name]; if (!config) { this.log(`Konfiguration "${name}" nicht gefunden`, 'error'); return; }
+                this.nodes = []; config.nodes.forEach(nodeData => { const node = new LHRPNode(nodeData.id, nodeData.address); node.parent = nodeData.parent; node.children = nodeData.children || []; node.extraConnections = nodeData.extraConnections || []; node.x = nodeData.x || 0; node.y = nodeData.y || 0; this.nodes[nodeData.id] = node; });
+                this.nodes = this.nodes.filter(n => n !== undefined); this.root = this.nodes[0]; this.calculateBounds(); this.centerTree(); this.updateUI(); this.log(`Konfiguration "${name}" geladen`, 'success');
+            }
+
+            loadSavedConfigs() {
+                const saved = JSON.parse(localStorage.getItem('lhrpConfigs') || '{}'); this.savedConfigsEl.innerHTML = '';
+                Object.keys(saved).forEach(name => {
+                    const config = saved[name]; const item = document.createElement('div'); item.className = 'log-entry'; item.style.cursor = 'pointer'; item.innerHTML = `<strong>${name}</strong><span style="float:right;color:#9aa7b2;font-size:10px">${config.nodes.length} nodes</span>`;
+                    item.addEventListener('click', () => { document.getElementById('saveName').value = name; this.loadConfig(); }); this.savedConfigsEl.appendChild(item);
+                });
+                if (Object.keys(saved).length === 0) this.savedConfigsEl.innerHTML = '<div style="color:#9aa7b2;text-align:center">Keine gespeicherten Konfigurationen</div>';
+            }
+
+            exportJSON() { const config = { nodes: this.nodes.map(node => ({ id: node.id, address: node.address, parent: node.parent, children: node.children, extraConnections: node.extraConnections })), metadata: { exported: new Date().toISOString(), nodeCount: this.nodes.length, extraEdgeCount: this.nodes.reduce((sum, n) => sum + (n.extraConnections ? n.extraConnections.length : 0), 0) / 2 } }; const dataStr = JSON.stringify(config, null, 2); const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr); const exportFileDefaultName = `lhrp_config_${new Date().toISOString().slice(0, 10)}.json`; const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', exportFileDefaultName); linkElement.click(); this.log('Konfiguration als JSON exportiert', 'success'); }
+
+            // --- Benchmark / statistics ---
+            computeTopologyStats() {
+                // For current topology: sample random pairs and compute average hop counts for Dijkstra and LHRP
+                const trials = Math.min(200, Math.max(20, Math.floor(this.nodes.length / 2)));
+                const samples = [];
+                for (let t = 0; t < trials; t++) {
+                    const a = Math.floor(Math.random() * this.nodes.length);
+                    let b = Math.floor(Math.random() * this.nodes.length);
+                    if (a === b) b = (b + 1) % this.nodes.length;
+                    samples.push([a, b]);
+                }
+
+                let sumD = 0, sumL = 0, countD = 0, countL = 0;
+                samples.forEach(([s, e]) => {
+                    const pD = dijkstraHopPath(this.nodes, s, e);
+                    const pL = lhrpPathStatic(this.nodes, s, e);
+                    if (pD) { sumD += (pD.length - 1); countD++; }
+                    if (pL) { sumL += (pL.length - 1); countL++; }
+                });
+
+                this.lastTopologyStats = {
+                    nodes: this.nodes.length,
+                    avgDijkstra: countD ? (sumD / countD) : null,
+                    avgLHRP: countL ? (sumL / countL) : null,
+                    samples: samples.length
+                };
+
+                this.log(`Topology-Statistik berechnet: N=${this.nodes.length}, Dijkstra Ø=${this.lastTopologyStats.avgDijkstra !== null ? this.lastTopologyStats.avgDijkstra.toFixed(2) : 'n/a'}, LHRP Ø=${this.lastTopologyStats.avgLHRP !== null ? this.lastTopologyStats.avgLHRP.toFixed(2) : 'n/a'}`);
+            }
+
+            async runBenchmarkUI() {
+                const sizes = [10, 50, 100, 200, 500];
+                const trialsPerSize = 80;
+                this.log('Starte Benchmark (Dijkstra vs LHRP) — dies kann einige Sekunden dauern', 'info');
+                const results = [];
+                for (const size of sizes) {
+                    // adapt extra edges and depth for larger sizes
+                    const extra = Math.max(2, Math.floor(size / 12));
+                    const depth = Math.min(10, Math.max(3, Math.floor(Math.log2(size))));
+                    const res = await this.runBenchmarkForSize(size, extra, depth, trialsPerSize);
+                    results.push(res);
+                    this.log(`Benchmark N=${size}: Dijkstra Ø=${res.avgDijkstra.toFixed(2)}, LHRP Ø=${res.avgLhrp !== null ? res.avgLhrp.toFixed(2) : 'n/a'}`);
+                    // yield to UI
+                    await this.delay(100);
+                }
+
+                // render comparison chart overlay in the SVG area
+                this.renderComparisonChart(results);
+            }
+
+            async runBenchmarkForSize(size, extra, maxDepth, trials) {
+                let sumD = 0, sumL = 0, cntD = 0, cntL = 0;
+                for (let t = 0; t < trials; t++) {
+                    const nodes = buildRandomTreeStatic(size, extra, maxDepth);
+                    // pick random pair
+                    let a = Math.floor(Math.random() * nodes.length);
+                    let b = Math.floor(Math.random() * nodes.length);
+                    if (a === b) b = (b + 1) % nodes.length;
+                    const pD = dijkstraHopPath(nodes, a, b);
+                    const pL = lhrpPathStatic(nodes, a, b, 500);
+                    if (pD) { sumD += (pD.length - 1); cntD++; }
+                    if (pL) { sumL += (pL.length - 1); cntL++; }
+                    if (t % 20 === 0) await this.delay(0); // yield
+                }
+                return { size, avgDijkstra: cntD ? sumD / cntD : null, avgLhrp: cntL ? sumL / cntL : null };
+            }
+
+            renderComparisonChart(results) {
+                // create a compact SVG chart in the right-top corner inside the main svg
+                // remove previous chartGroup if exists
+                const existing = this.svg.querySelector('#benchmarkChart'); if (existing) this.svg.removeChild(existing);
+                const svgNS = 'http://www.w3.org/2000/svg';
+                const g = document.createElementNS(svgNS, 'g'); g.setAttribute('id', 'benchmarkChart');
+                const x = 40, y = 40, w = 520, h = 300;
+                // background
+                const rect = document.createElementNS(svgNS, 'rect'); rect.setAttribute('x', x); rect.setAttribute('y', y); rect.setAttribute('width', w); rect.setAttribute('height', h); rect.setAttribute('rx', '8'); rect.setAttribute('fill', '#031319'); rect.setAttribute('opacity', '0.9'); g.appendChild(rect);
+
+                // find max hops to normalize
+                const maxHop = Math.max(...results.map(r => Math.max(r.avgDijkstra || 0, r.avgLhrp || 0))) || 1;
+                // axes
+                const axisColor = '#2a6b7c';
+                const axes = ['line', 'line'].map(() => document.createElementNS(svgNS, 'line'));
+                axes[0].setAttribute('x1', x + 40); axes[0].setAttribute('y1', y + h - 40); axes[0].setAttribute('x2', x + w - 20); axes[0].setAttribute('y2', y + h - 40); axes[0].setAttribute('stroke', axisColor); axes[0].setAttribute('stroke-width', '1'); g.appendChild(axes[0]);
+                axes[1].setAttribute('x1', x + 40); axes[1].setAttribute('y1', y + 20); axes[1].setAttribute('x2', x + 40); axes[1].setAttribute('y2', y + h - 40); axes[1].setAttribute('stroke', axisColor); axes[1].setAttribute('stroke-width', '1'); g.appendChild(axes[1]);
+
+                // plot lines
+                const paddingLeft = x + 50; const paddingRight = x + w - 30; const plotW = paddingRight - paddingLeft; const plotH = h - 80;
+                const xs = results.map((r, i) => paddingLeft + (i / Math.max(1, results.length - 1)) * plotW);
+                // Dijkstra line
+                const dPath = document.createElementNS(svgNS, 'path');
+                const lPath = document.createElementNS(svgNS, 'path');
+                let dD = '', lD = '';
+                results.forEach((r, i) => {
+                    const vx = xs[i]; const vyD = y + h - 40 - ((r.avgDijkstra || 0) / maxHop) * plotH; const vyL = y + h - 40 - ((r.avgLhrp || 0) / maxHop) * plotH;
+                    dD += (i === 0 ? `M ${vx} ${vyD}` : ` L ${vx} ${vyD}`);
+                    lD += (i === 0 ? `M ${vx} ${vyL}` : ` L ${vx} ${vyL}`);
+                });
+                dPath.setAttribute('d', dD); dPath.setAttribute('stroke', '#38bdf8'); dPath.setAttribute('fill', 'none'); dPath.setAttribute('stroke-width', '2.5'); g.appendChild(dPath);
+                lPath.setAttribute('d', lD); lPath.setAttribute('stroke', '#86efac'); lPath.setAttribute('fill', 'none'); lPath.setAttribute('stroke-width', '2.5'); g.appendChild(lPath);
+
+                // labels
+                results.forEach((r, i) => {
+                    const vx = xs[i];
+                    const text = document.createElementNS(svgNS, 'text'); text.setAttribute('x', vx); text.setAttribute('y', y + h - 18); text.setAttribute('font-size', '10'); text.setAttribute('fill', '#bfeffb'); text.setAttribute('text-anchor', 'middle'); text.textContent = r.size; g.appendChild(text);
+                });
+
+                const legendD = document.createElementNS(svgNS, 'text'); legendD.setAttribute('x', x + w - 180); legendD.setAttribute('y', y + 30); legendD.setAttribute('font-size', '11'); legendD.setAttribute('fill', '#38bdf8'); legendD.textContent = 'Dijkstra'; g.appendChild(legendD);
+                const legendL = document.createElementNS(svgNS, 'text'); legendL.setAttribute('x', x + w - 180); legendL.setAttribute('y', y + 46); legendL.setAttribute('font-size', '11'); legendL.setAttribute('fill', '#86efac'); legendL.textContent = 'LHRP'; g.appendChild(legendL);
+
+                this.svg.appendChild(g);
+            }
+
+        }
+
+        // Initialize simulator
+        document.addEventListener('DOMContentLoaded', () => { window.simulator = new LHRPSimulator(); });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LHRP vs Dijkstra Vergleich</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f1724;
+            color: #e6eef6;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #38bdf8;
+        }
+
+        input,
+        button {
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border: 1px solid #444;
+        }
+
+        button {
+            background: #38bdf8;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        pre {
+            background: #0b1220;
+            padding: 15px;
+            border-radius: 8px;
+            overflow: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>LHRP vs Dijkstra Vergleich</h1>
+
+    <label>Routen (z.B. 100000):</label><br>
+    <input id="trials" type="number" value="100000"><br>
+
+    <label>Knotenanzahl:</label><br>
+    <input id="nodes" type="number" value="50"><br>
+
+    <label>Extra Verbindungen:</label><br>
+    <input id="extras" type="number" value="20"><br>
+
+    <label>Max Tiefe:</label><br>
+    <input id="depth" type="number" value="5"><br>
+
+    <button onclick="runCompare()">Vergleich starten</button>
+
+    <h2>Ergebnis:</h2>
+    <pre id="output"></pre>
+
+    <script>
+
+        function buildRandomGraph(nodeCount, extraCount, maxDepth) {
+            const nodes = [];
+            const root = { id: 0, address: [0], parent: null, children: [], extraConnections: [], level: 1 };
+            nodes.push(root);
+
+            for (let i = 1; i < nodeCount; i++) {
+                const available = nodes.filter(n => n.level < maxDepth && n.children.length < 4);
+                if (!available.length) break;
+                const parent = available[Math.floor(Math.random() * available.length)];
+                const address = [...parent.address, parent.children.length];
+                const node = { id: i, address, parent: parent.id, children: [], extraConnections: [], level: address.length };
+                parent.children.push(i);
+                nodes.push(node);
+            }
+
+            for (let i = 0; i < extraCount; i++) {
+                let tries = 0;
+                while (tries++ < 200) {
+                    const a = Math.floor(Math.random() * nodes.length);
+                    const b = Math.floor(Math.random() * nodes.length);
+                    if (a === b) continue;
+                    const A = nodes[a], B = nodes[b];
+                    if (A.parent === b || B.parent === a) continue;
+                    if (A.children.includes(b) || B.children.includes(a)) continue;
+                    if (A.extraConnections.includes(b)) continue;
+                    if (Math.abs(A.level - B.level) < 2) continue;
+                    A.extraConnections.push(b);
+                    B.extraConnections.push(a);
+                    break;
+                }
+            }
+            return nodes;
+        }
+
+        function buildAdj(nodes) {
+            const adj = new Array(nodes.length).fill(0).map(() => []);
+            nodes.forEach(n => {
+                if (n.parent !== null) adj[n.id].push(n.parent);
+                n.children.forEach(c => adj[n.id].push(c));
+                n.extraConnections.forEach(e => adj[n.id].push(e));
+            });
+            return adj;
+        }
+
+        function bfs(adj, start, goal) {
+            const visited = new Array(adj.length).fill(false);
+            const parent = new Array(adj.length).fill(-1);
+            const q = [start];
+            visited[start] = true;
+            let head = 0;
+            let ops = 0;
+
+            while (head < q.length) {
+                const u = q[head++];
+                if (u === goal) break;
+                for (const v of adj[u]) {
+                    ops++;
+                    if (!visited[v]) {
+                        visited[v] = true;
+                        parent[v] = u;
+                        q.push(v);
+                    }
+                }
+            }
+            if (!visited[goal]) return { success: false, ops };
+            let hops = 0;
+            for (let cur = goal; cur !== start; cur = parent[cur]) hops++;
+            return { success: true, hops, ops };
+        }
+
+        function score(a, b) {
+            const min = Math.min(a.length, b.length);
+            let pos = 0;
+            while (pos < min && a[pos] === b[pos]) pos++;
+            const neg = a.length - pos;
+            return pos - neg;
+        }
+
+        function lhrp(nodes, start, goal, maxHops = 200) {
+            let current = start;
+            const visited = new Set();
+            let hops = 0;
+            let ops = 0;
+
+            while (current !== goal) {
+                if (visited.has(current)) return { success: false, ops };
+                visited.add(current);
+
+                const node = nodes[current];
+                const target = nodes[goal].address;
+
+                const connections = [];
+                if (node.parent !== null) connections.push(node.parent);
+                connections.push(...node.children);
+                connections.push(...node.extraConnections);
+
+                let best = null;
+                let bestScore = -Infinity;
+
+                for (const id of connections) {
+                    ops++;
+                    const s = score(nodes[id].address, target);
+                    if (s > bestScore) {
+                        bestScore = s;
+                        best = id;
+                    }
+                }
+
+                if (best === null || bestScore <= score(node.address, target))
+                    return { success: false, ops };
+
+                current = best;
+                hops++;
+                if (hops > maxHops) return { success: false, ops };
+            }
+
+            return { success: true, hops, ops };
+        }
+
+        function vergleiche(trials, nodeCount, extra, maxDepth) {
+            const nodes = buildRandomGraph(nodeCount, extra, maxDepth);
+            const adj = buildAdj(nodes);
+
+            let totalHopD = 0, totalOpsD = 0, successD = 0;
+            let totalHopL = 0, totalOpsL = 0, successL = 0;
+
+            for (let i = 0; i < trials; i++) {
+                let a = Math.floor(Math.random() * nodes.length);
+                let b = Math.floor(Math.random() * nodes.length);
+                if (a === b) { i--; continue; }
+
+                const d = bfs(adj, a, b);
+                totalOpsD += d.ops;
+                if (d.success) { totalHopD += d.hops; successD++; }
+
+                const l = lhrp(nodes, a, b);
+                totalOpsL += l.ops;
+                if (l.success) { totalHopL += l.hops; successL++; }
+            }
+
+            return {
+                network: { nodes: nodeCount, extraEdges: extra, maxDepth },
+                trials,
+                dijkstra: {
+                    successRate: successD / trials,
+                    avgHop: successD ? totalHopD / successD : Infinity,
+                    avgOps: totalOpsD / trials
+                },
+                lhrp: {
+                    successRate: successL / trials,
+                    avgHop: successL ? totalHopL / successL : Infinity,
+                    avgOps: totalOpsL / trials
+                }
+            };
+        }
+
+        function runCompare() {
+            const trials = parseInt(document.getElementById("trials").value);
+            const nodes = parseInt(document.getElementById("nodes").value);
+            const extras = parseInt(document.getElementById("extras").value);
+            const depth = parseInt(document.getElementById("depth").value);
+
+            document.getElementById("output").textContent = "Berechnung läuft...";
+
+            setTimeout(() => {
+                const result = vergleiche(trials, nodes, extras, depth);
+                document.getElementById("output").textContent =
+                    JSON.stringify(result, null, 2);
+            }, 50);
+        }
+
+    </script>
+
+</body>
+
+</html>

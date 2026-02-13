@@ -1,0 +1,543 @@
+<!doctype html>
+
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Flyer | LHRP — Lightweight Hierarchical Routing Protocol (Jugend forscht)</title>
+    <style>
+        /* A2 print-optimiert: 420mm x 594mm (portrait). Farben dezent, hoher Kontrast. */
+        @page {
+            size: A2 portrait;
+            margin: 12mm;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: white;
+            -webkit-print-color-adjust: exact;
+        }
+
+        body {
+            font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+            color: #071827;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            box-sizing: border-box;
+        }
+
+        .page {
+            width: 420mm;
+            height: 594mm;
+            padding: 16mm;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: 1fr 0.9fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 12mm;
+        }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12mm;
+        }
+
+        .logo {
+            width: 85mm;
+            height: 85mm;
+            background: linear-gradient(180deg, #0ea5e9, #38bdf8);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 24px rgba(6, 18, 30, 0.08);
+            flex-shrink: 0;
+        }
+
+        .logo svg {
+            width: 70mm;
+            height: 70mm;
+        }
+
+        .title-block {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 34pt;
+            /* large headline for A2 */
+            line-height: 1;
+            color: #073045;
+            letter-spacing: -0.5px;
+        }
+
+        h2 {
+            margin: 6px 0 0 0;
+            font-size: 14pt;
+            color: #1b6b84;
+            font-weight: 600;
+        }
+
+        /* Left column: kurze Infos + diagramm */
+        .left {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12mm;
+            box-shadow: 0 6px 18px rgba(6, 18, 30, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 10mm;
+        }
+
+        .what,
+        .why,
+        .stats {
+            display: block;
+        }
+
+        .what p {
+            margin: 0;
+            font-size: 12pt;
+            color: #073045;
+            font-weight: 600;
+        }
+
+        .what small {
+            display: block;
+            margin-top: 6px;
+            color: #3b5a67;
+            font-size: 9pt;
+        }
+
+        .bullets {
+            display: flex;
+            gap: 8mm;
+            flex-wrap: wrap;
+        }
+
+        .bullet {
+            width: 48%;
+            min-width: 120px;
+            background: white;
+            border-radius: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid rgba(7, 56, 80, 0.04);
+        }
+
+        .bullet h3 {
+            margin: 0;
+            font-size: 10pt;
+            color: #0b4a6f;
+        }
+
+        .bullet p {
+            margin: 6px 0 0 0;
+            font-size: 8pt;
+            color: #234d5f;
+        }
+
+        /* Center graphic (tree) */
+        .center-graphic {
+            background: linear-gradient(180deg, #ffffff, #fbfeff);
+            border-radius: 12px;
+            padding: 10mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(7, 56, 80, 0.04);
+        }
+
+        /* Right column: chart + short table */
+        .right {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12mm;
+            box-shadow: 0 6px 18px rgba(6, 18, 30, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 10mm;
+        }
+
+        .chart-title {
+            font-size: 12pt;
+            color: #073045;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+        }
+
+        .chart {
+            width: 100%;
+            height: 220mm;
+            /* make it tall enough visually in A2 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .small-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6mm;
+            font-size: 9pt;
+            color: #234d5f;
+        }
+
+        .small-table th,
+        .small-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(7, 56, 80, 0.04);
+            text-align: left;
+        }
+
+        .small-table th {
+            font-weight: 700;
+            color: #0b4a6f;
+            font-size: 9pt;
+        }
+
+        /* Footer */
+        .footer {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #6b878f;
+            font-size: 9pt;
+            padding: 6mm 0 0 0;
+        }
+
+        /* Print tweaks */
+        @media print {
+            .page {
+                box-shadow: none;
+                background: white;
+            }
+
+            .logo {
+                box-shadow: none;
+            }
+
+            .center-graphic {
+                box-shadow: none;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact;
+            }
+        }
+
+        /* small responsive fallback */
+        @media (max-width:1200px) {
+            .page {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr auto;
+            }
+
+            .chart {
+                height: 160mm;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="page" role="main" aria-label="LHRP Flyer Jugend forscht">
+        <!-- Header -->
+        <header class="header" role="banner">
+            <div class="logo" aria-hidden="true">
+                <!-- simple hierarchical icon -->
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LHRP Logo">
+                    <defs>
+                        <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+                            <stop offset="0" stop-color="#0ea5e9" />
+                            <stop offset="1" stop-color="#0384b3" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="10" y="10" width="180" height="180" rx="20" fill="url(#g1)" />
+                    <!-- nodes -->
+                    <circle cx="100" cy="44" r="12" fill="#fff" opacity="0.95" />
+                    <circle cx="50" cy="118" r="10" fill="#fff" opacity="0.95" />
+                    <circle cx="100" cy="118" r="10" fill="#fff" opacity="0.95" />
+                    <circle cx="150" cy="118" r="10" fill="#fff" opacity="0.95" />
+                    <!-- edges -->
+                    <line x1="100" y1="56" x2="50" y2="108" stroke="#063547" stroke-width="3" stroke-linecap="round" />
+                    <line x1="100" y1="56" x2="100" y2="108" stroke="#063547" stroke-width="3" stroke-linecap="round" />
+                    <line x1="100" y1="56" x2="150" y2="108" stroke="#063547" stroke-width="3" stroke-linecap="round" />
+                </svg>
+            </div>
+
+
+            <div class="title-block">
+                <h1>LHRP</h1>
+                <h2>Lightweight Hierarchical Routing Protocol — Kurz & prägnant</h2>
+            </div>
+        </header>
+
+        <!-- Left column -->
+        <section class="left" aria-labelledby="what-title">
+            <div class="what" id="what-title">
+                <p>Was ist LHRP?</p>
+                <small>Kurz: Ein leichtgewichtiges, hierarchisches Routing-Verfahren für große, verschachtelte
+                    Netzwerke. Lokal entscheidend — kein globaler Pfad.</small>
+            </div>
+
+            <div class="bullets" role="list">
+                <article class="bullet" role="listitem" aria-label="Vorteil: Skalierbarkeit">
+                    <h3>Skalierbar</h3>
+                    <p>Hierarchie reduziert Routing-Entscheidungen pro Knoten.</p>
+                </article>
+
+                <article class="bullet" role="listitem" aria-label="Vorteil: Geringe Latenz">
+                    <h3>Kurze Hops</h3>
+                    <p>Prefix-Matching führt lokal zu zielgerichteten Weiterleitungen.</p>
+                </article>
+
+                <article class="bullet" role="listitem" aria-label="Vorteil: Robustheit">
+                    <h3>Robust</h3>
+                    <p>Extra-Verbindungen reduzieren Abhängigkeit von einem Pfad.</p>
+                </article>
+
+                <article class="bullet" role="listitem" aria-label="Vorteil: Einfachheit">
+                    <h3>Einfach</h3>
+                    <p>Leichtgewichtige Logik: nur Prefix-Score und lokale Regeln.</p>
+                </article>
+            </div>
+
+            <div class="center-graphic" aria-hidden="false">
+                <!-- stylized tree SVG (visual only, minimal text) -->
+                <svg viewBox="0 0 1200 700" width="100%" height="360" xmlns="http://www.w3.org/2000/svg" role="img"
+                    aria-label="Hierarchischer Baum">
+                    <defs>
+                        <filter id="f1" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.12" />
+                        </filter>
+                    </defs>
+
+                    <!-- root -->
+                    <g stroke-linecap="round" stroke-linejoin="round" font-family="Inter, Arial, sans-serif">
+                        <!-- edges -->
+                        <line x1="600" y1="80" x2="300" y2="220" stroke="#9fd8e8" stroke-width="6" opacity="0.9" />
+                        <line x1="600" y1="80" x2="600" y2="220" stroke="#9fd8e8" stroke-width="6" opacity="0.9" />
+                        <line x1="600" y1="80" x2="900" y2="220" stroke="#9fd8e8" stroke-width="6" opacity="0.9" />
+
+                        <!-- second level -->
+                        <line x1="300" y1="220" x2="180" y2="380" stroke="#bfeffb" stroke-width="4" />
+                        <line x1="300" y1="220" x2="360" y2="380" stroke="#bfeffb" stroke-width="4" />
+                        <line x1="600" y1="220" x2="520" y2="380" stroke="#bfeffb" stroke-width="4" />
+                        <line x1="600" y1="220" x2="680" y2="380" stroke="#bfeffb" stroke-width="4" />
+                        <line x1="900" y1="220" x2="820" y2="380" stroke="#bfeffb" stroke-width="4" />
+                        <line x1="900" y1="220" x2="980" y2="380" stroke="#bfeffb" stroke-width="4" />
+
+                        <!-- nodes -->
+                        <g filter="url(#f1)">
+                            <circle cx="600" cy="80" r="28" fill="#073045" />
+                            <text x="600" y="86" text-anchor="middle" font-size="14" fill="#fff">0</text>
+
+                            <!-- second row -->
+                            <circle cx="300" cy="220" r="22" fill="#0b4a6f" /><text x="300" y="226" text-anchor="middle"
+                                font-size="11" fill="#fff">0.1</text>
+                            <circle cx="600" cy="220" r="22" fill="#0b4a6f" /><text x="600" y="226" text-anchor="middle"
+                                font-size="11" fill="#fff">0.0</text>
+                            <circle cx="900" cy="220" r="22" fill="#0b4a6f" /><text x="900" y="226" text-anchor="middle"
+                                font-size="11" fill="#fff">0.2</text>
+
+                            <!-- leaves -->
+                            <circle cx="180" cy="380" r="16" fill="#38bdf8" /><text x="180" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.1.0</text>
+                            <circle cx="360" cy="380" r="16" fill="#38bdf8" /><text x="360" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.1.1</text>
+
+                            <circle cx="520" cy="380" r="16" fill="#86efac" /><text x="520" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.0.0</text>
+                            <circle cx="680" cy="380" r="16" fill="#86efac" /><text x="680" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.0.1</text>
+
+                            <circle cx="820" cy="380" r="16" fill="#fbbf24" /><text x="820" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.2.0</text>
+                            <circle cx="980" cy="380" r="16" fill="#fbbf24" /><text x="980" y="385" text-anchor="middle"
+                                font-size="9" fill="#04273a">0.2.1</text>
+                        </g>
+
+                        <!-- legend small -->
+                        <rect x="920" y="520" rx="8" ry="8" width="210" height="100" fill="#ffffff" opacity="0.9"
+                            stroke="#e6f7fb" />
+                        <text x="935" y="540" font-size="11" fill="#073045" font-weight="700">Legende</text>
+                        <circle cx="942" cy="560" r="6" fill="#38bdf8" /><text x="960" y="564" font-size="9"
+                            fill="#234d5f">Leaf / Endnetz</text>
+                        <circle cx="942" cy="582" r="6" fill="#86efac" /><text x="960" y="586" font-size="9"
+                            fill="#234d5f">Intermediate</text>
+                        <circle cx="942" cy="604" r="6" fill="#fbbf24" /><text x="960" y="608" font-size="9"
+                            fill="#234d5f">Andere Unterbäume</text>
+                    </g>
+                </svg>
+            </div>
+        </section>
+
+        <!-- Right column -->
+        <aside class="right" aria-labelledby="stats-title">
+            <h3 class="chart-title" id="stats-title">Hop-Analyse: Netzwerkgröße → durchschnittliche Hop-Anzahl</h3>
+
+            <div class="chart" role="figure" aria-label="Diagramm Netzwerkgröße versus Hop-Anzahl">
+                <!-- simple SVG line chart with labeled points (sample data, minimal text) -->
+                <svg viewBox="0 0 520 360" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img">
+                    <style>
+                        .axis {
+                            stroke: #cfeff6;
+                            stroke-width: 1;
+                        }
+
+                        .grid {
+                            stroke: #eef9fb;
+                            stroke-opacity: 0.6;
+                            stroke-width: 0.7;
+                        }
+
+                        .label {
+                            fill: #073045;
+                            font-size: 10px;
+                            font-family: Inter, Arial;
+                        }
+
+                        .point {
+                            fill: #0b4a6f;
+                            stroke: #ffffff;
+                            stroke-width: 1.5;
+                        }
+
+                        .line {
+                            fill: none;
+                            stroke: #0384b3;
+                            stroke-width: 3;
+                            stroke-linecap: round;
+                            stroke-linejoin: round;
+                        }
+
+                        .area {
+                            fill: #dff7fb;
+                            opacity: 0.35;
+                        }
+                    </style>
+
+                    <!-- axes -->
+                    <line x1="60" y1="20" x2="60" y2="320" class="axis" />
+                    <line x1="60" y1="320" x2="500" y2="320" class="axis" />
+
+                    <!-- grid horizontal -->
+                    <g class="grid">
+                        <line x1="60" x2="500" y1="260" y2="260" />
+                        <line x1="60" x2="500" y1="200" y2="200" />
+                        <line x1="60" x2="500" y1="140" y2="140" />
+                        <line x1="60" x2="500" y1="80" y2="80" />
+                    </g>
+
+                    <!-- labels -->
+                    <text x="32" y="324" class="label">0</text>
+                    <text x="32" y="264" class="label">2</text>
+                    <text x="32" y="204" class="label">4</text>
+                    <text x="32" y="144" class="label">6</text>
+                    <text x="32" y="84" class="label">8</text>
+                    <text x="280" y="348" class="label">Netzwerkgröße (Knoten)</text>
+
+                    <!-- x ticks labels -->
+                    <text x="80" y="338" class="label">10</text>
+                    <text x="170" y="338" class="label">50</text>
+                    <text x="260" y="338" class="label">100</text>
+                    <text x="350" y="338" class="label">200</text>
+                    <text x="440" y="338" class="label">500</text>
+
+                    <!-- data (sample averages) mapped to coordinates:
+           map y: hops 1..8 -> pixels between 320 (0) and 40 (8)
+           helper: y = 320 - (hops/8)*(320-40) = 320 - hops*35
+           points for hops [1.5, 2.3, 3.6, 4.8, 6.2] -->
+                    <polyline class="line" points="
+        80, (320-1.5*35)
+        170, (320-2.3*35)
+        260, (320-3.6*35)
+        350, (320-4.8*35)
+        440, (320-6.2*35)
+      " transform="translate(0,0)" />
+                    <!-- Because <polyline> can't compute expressions, enumerate computed points: -->
+                    <polyline class="line" points="80,267.5 170,241.5 260,194.0 350,152.0 440,99.0" />
+
+                    <!-- shaded area -->
+                    <path class="area" d="M80,267.5 L170,241.5 L260,194.0 L350,152.0 L440,99.0 L440,320 L80,320 Z" />
+
+                    <!-- points -->
+                    <circle class="point" cx="80" cy="267.5" r="5" /><text x="70" y="255" class="label">1.5</text>
+                    <circle class="point" cx="170" cy="241.5" r="5" /><text x="160" y="231" class="label">2.3</text>
+                    <circle class="point" cx="260" cy="194.0" r="5" /><text x="250" y="182" class="label">3.6</text>
+                    <circle class="point" cx="350" cy="152.0" r="5" /><text x="340" y="140" class="label">4.8</text>
+                    <circle class="point" cx="440" cy="99.0" r="5" /><text x="430" y="88" class="label">6.2</text>
+
+                    <!-- small caption -->
+                    <text x="60" y="20" class="label" font-weight="700">Durchschnittliche Hop-Anzahl</text>
+                </svg>
+            </div>
+
+            <table class="small-table" role="table" aria-label="Tabelle: Beispielwerte">
+                <thead>
+                    <tr>
+                        <th>Netzwerkgrösse</th>
+                        <th>Ø Hops</th>
+                        <th>Bemerkung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>10</td>
+                        <td>1.5</td>
+                        <td>klein, flache Struktur</td>
+                    </tr>
+                    <tr>
+                        <td>50</td>
+                        <td>2.3</td>
+                        <td>einfacher Hierarchieeffekt</td>
+                    </tr>
+                    <tr>
+                        <td>100</td>
+                        <td>3.6</td>
+                        <td>mehr Zwischenknoten</td>
+                    </tr>
+                    <tr>
+                        <td>200</td>
+                        <td>4.8</td>
+                        <td>hierarchisch effizient</td>
+                    </tr>
+                    <tr>
+                        <td>500</td>
+                        <td>6.2</td>
+                        <td>zusätzliche Shortcuts helfen</td>
+                    </tr>
+                </tbody>
+            </table>
+        </aside>
+
+        <!-- Footer -->
+        <footer class="footer" role="contentinfo">
+            <div>
+                <strong>Projekt:</strong> LHRP — Lightweight Hierarchical Routing Protocol
+            </div>
+            <div>
+                <small>Jugend forscht — Kurzvorstellung & Visualisierung — Minimaltext, A2-druckoptimiert</small>
+            </div>
+            <div>
+                <small>Autor: Team (Projekt)</small>
+            </div>
+        </footer>
+
+
+    </div>
+</body>
+
+</html>
