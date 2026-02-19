@@ -1,4 +1,5 @@
 <!doctype html>
+
 <html lang="de">
   <head>
     <meta charset="utf-8" />
@@ -13,6 +14,19 @@
         --panel: #081025;
         --input-bg: #07101a;
         --border: #223047;
+        --text: #e6eef6;
+      }
+
+      /* white mode variables (applied when body.white-mode) */
+      body.white-mode {
+        --bg: #ffffff;
+        --card: #ffffff;
+        --muted: #4b5563;
+        --accent: #0ea5e9;
+        --panel: #f8fafc;
+        --input-bg: #ffffff;
+        --border: #e6edf3;
+        --text: #0b1220;
       }
 
       html,
@@ -23,7 +37,7 @@
       body {
         font-family: Inter, Arial, sans-serif;
         background: var(--bg);
-        color: #e6eef6;
+        color: var(--text);
         margin: 0;
         padding: 20px;
         box-sizing: border-box;
@@ -59,6 +73,7 @@
         padding: 12px;
         border-radius: 10px;
         border: 1px solid var(--border);
+        color: var(--text);
       }
 
       label {
@@ -133,6 +148,7 @@
         border: 1px solid var(--border);
         max-height: 520px;
         overflow: auto;
+        color: var(--text);
       }
 
       .footer {
@@ -160,6 +176,84 @@
         font-size: 0.82rem;
         color: var(--muted);
         margin-top: 6px;
+      }
+
+      /* White-mode statistics panel at the very bottom */
+      .white-stats {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 10px;
+      }
+
+      .white-stats .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .stat-card {
+        background: var(--panel);
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        min-width: 160px;
+      }
+
+      .stat-card dt {
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: var(--text);
+      }
+
+      .stat-card dd {
+        margin: 6px 0 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .alg-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 0.92rem;
+      }
+
+      .alg-table th,
+      .alg-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .alg-table th {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .toggle-sm {
+        padding: 6px 8px;
+        font-size: 0.9rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .muted-note {
+        color: var(--muted);
+        font-size: 0.86rem;
+        margin-top: 8px;
+      }
+
+      /* ensure white-mode applies good contrast to panels inside */
+      body.white-mode .panel,
+      body.white-mode .stat-card,
+      body.white-mode .output {
+        background: var(--panel);
+        color: var(--text);
       }
     </style>
   </head>
@@ -282,6 +376,44 @@
         JavaScript-Client simuliert zufällige Baumstruktur + Shortcuts; LHRP
         gemäß C++-Snippet.
       </div>
+
+      <!-- WEISSER MODUS STATISTIK-BEREICH (ganz unten) -->
+      <div id="whiteStatsWrapper" class="white-stats panel" aria-live="polite">
+        <div
+          class="row"
+          style="justify-content: space-between; align-items: center"
+        >
+          <div style="display: flex; gap: 12px; align-items: center">
+            <strong style="font-size: 1rem; color: var(--accent)"
+              >White Mode Statistiken</strong
+            >
+            <div class="muted-note">Übersicht aller wichtigen Messwerte</div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center">
+            <button
+              id="toggleWhite"
+              class="toggle-sm"
+              title="Weißer Modus umschalten"
+            >
+              Weißer Modus
+            </button>
+            <button id="refreshWhite" class="toggle-sm" title="Aktualisieren">
+              Aktualisieren
+            </button>
+          </div>
+        </div>
+
+        <div id="whiteContent" style="margin-top: 12px">
+          <!-- dynamischer Inhalt wird hier eingefügt -->
+          <div class="stat-card" id="whitePlaceholder">
+            <dl>
+              <dt>Keine Daten</dt>
+              <dd>Führe einen Vergleich aus, um Statistiken hier zu sehen.</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+      <!-- /WEISSER MODUS -->
     </div>
 
     <script>
@@ -770,6 +902,11 @@
       const progressBar = document.querySelector(".progress");
       const progressFill = document.querySelector(".progress > i");
 
+      const toggleWhite = document.getElementById("toggleWhite");
+      const refreshWhite = document.getElementById("refreshWhite");
+      const whiteContent = document.getElementById("whiteContent");
+      const whitePlaceholder = document.getElementById("whitePlaceholder");
+
       let lastResult = null; // raw stats
       let formattedResult = null;
 
@@ -831,6 +968,9 @@
             // display the formatted JSON exactly as requested
             summary.textContent = JSON.stringify(formattedResult, null, 2);
 
+            // update white-mode stats panel at completion
+            updateWhiteStats();
+
             progressFill.style.width = "100%";
             runBtn.disabled = false;
             progressBar.style.display = "none";
@@ -838,6 +978,7 @@
             summary.textContent = "Fehler: " + e.toString();
             runBtn.disabled = false;
             progressBar.style.display = "none";
+            updateWhiteStats();
           }
         }, 30);
       });
@@ -930,6 +1071,140 @@
         a.remove();
         URL.revokeObjectURL(url);
       });
+
+      /* WHITE-MODE STATS RENDERING */
+      function safe(val) {
+        return val == null ? "—" : val;
+      }
+
+      function buildAlgRows(stats) {
+        const algs = Object.keys(stats.algorithms || {});
+        if (!algs.length)
+          return "<div class='muted-note'>Keine Algorithmendaten.</div>";
+        const rows = algs.map((alg) => {
+          const a = stats.algorithms[alg];
+          return `<tr>
+        <td>${alg}</td>
+        <td>${safe(round3(a.successRate))}</td>
+        <td>${safe(a.successCount)}</td>
+        <td>${safe(a.failureCount)}</td>
+        <td>${safe(a.avgHop == null ? null : round3(a.avgHop))}</td>
+        <td>${safe(a.medianHop == null ? null : round3(a.medianHop))}</td>
+        <td>${safe(a.p90Hop == null ? null : round3(a.p90Hop))}</td>
+        <td>${safe(a.avgOpsPerTrial == null ? null : round3(a.avgOpsPerTrial))}</td>
+        <td>${safe(a.avgOpsOnSuccess == null ? null : round3(a.avgOpsOnSuccess))}</td>
+      </tr>`;
+        });
+        return `<table class="alg-table" role="table" aria-label="Algorithmus Statistiken">
+      <thead><tr>
+        <th>Alg.</th><th>SR</th><th>succ</th><th>fail</th><th>avgHop</th><th>median</th><th>p90</th><th>avgOps</th><th>avgOpsOnSucc</th>
+      </tr></thead><tbody>${rows.join("")}</tbody></table>`;
+      }
+
+      function updateWhiteStats() {
+        // Use lastResult (raw) if available for full details; otherwise formattedResult for summary
+        const stats = lastResult || formattedResult || null;
+        const fmt = formattedResult || null;
+        if (!stats) {
+          whiteContent.innerHTML = `<div class="stat-card"><dl><dt>Keine Daten</dt><dd>Führe einen Vergleich aus, um Statistiken hier zu sehen.</dd></dl></div>`;
+          return;
+        }
+
+        // If lastResult exists (raw structure), use it; else if formattedResult only, construct summary using formattedResult
+        let network =
+          stats.network && stats.network.nodes != null
+            ? stats.network
+            : fmt && fmt.network
+              ? fmt.network
+              : {};
+        let trials =
+          stats.trials != null
+            ? stats.trials
+            : fmt && fmt.trials != null
+              ? fmt.trials
+              : "—";
+        let duration =
+          stats.duration_seconds != null
+            ? stats.duration_seconds
+            : fmt && fmt.duration_seconds != null
+              ? fmt.duration_seconds
+              : "—";
+
+        // Build network stat cards
+        const netHtml = `<div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:10px;">
+      <div class="stat-card"><dl><dt>Knoten</dt><dd>${safe(network.nodes)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>Extra-Edges</dt><dd>${safe(network.extraEdges)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>MaxDepth</dt><dd>${safe(network.maxDepth)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>avgDegree</dt><dd>${safe(round3(network.avgDegree))}</dd></dl></div>
+      <div class="stat-card"><dl><dt>minDegree</dt><dd>${safe(network.minDegree)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>maxDegree</dt><dd>${safe(network.maxDegree)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>Trials</dt><dd>${safe(trials)}</dd></dl></div>
+      <div class="stat-card"><dl><dt>Dauer (s)</dt><dd>${safe(round3(duration))}</dd></dl></div>
+    </div>`;
+
+        // Build algorithm table. lastResult.algorithms contains deeper fields; formattedResult contains reduced fields.
+        let algHtml = "";
+        if (lastResult && lastResult.algorithms) {
+          // map values to expected keys for buildAlgRows
+          const mapped = {};
+          for (const k of Object.keys(lastResult.algorithms)) {
+            const v = lastResult.algorithms[k];
+            mapped[k] = {
+              successRate: v.successRate,
+              successCount: v.successCount,
+              failureCount: v.failureCount,
+              avgHop: v.avgHop,
+              medianHop: v.medianHop,
+              p90Hop: v.p90Hop,
+              avgOpsPerTrial: v.avgOpsPerTrial,
+              avgOpsOnSuccess: v.avgOpsOnSuccess,
+            };
+          }
+          algHtml = buildAlgRows({ algorithms: mapped });
+        } else if (fmt && fmt.algorithms) {
+          const mapped = {};
+          for (const k of Object.keys(fmt.algorithms)) {
+            const v = fmt.algorithms[k];
+            mapped[k] = {
+              successRate: v.successRate,
+              successCount: v.successCount || null,
+              failureCount: v.failureCount || null,
+              avgHop: v.avgHop,
+              medianHop: v.medianHop || null,
+              p90Hop: v.p90Hop || null,
+              avgOpsPerTrial: v.avgOps || null,
+              avgOpsOnSuccess: null,
+            };
+          }
+          algHtml = buildAlgRows({ algorithms: mapped });
+        } else {
+          algHtml =
+            "<div class='muted-note'>Keine Algorithmendaten verfügbar.</div>";
+        }
+
+        // Raw quick JSON (collapsible)
+        const rawJson = `<details style="margin-top:12px"><summary style="cursor:pointer">Rohdaten (kompakt)</summary><pre style="white-space:pre-wrap;margin-top:8px;max-height:260px;overflow:auto;background:var(--panel);padding:10px;border-radius:8px;border:1px solid var(--border);">${escapeHtml(JSON.stringify(stats, null, 2))}</pre></details>`;
+
+        whiteContent.innerHTML = netHtml + algHtml + rawJson;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      toggleWhite.addEventListener("click", () => {
+        document.body.classList.toggle("white-mode");
+      });
+
+      refreshWhite.addEventListener("click", () => {
+        updateWhiteStats();
+      });
+
+      // initial render
+      updateWhiteStats();
     </script>
   </body>
 </html>
