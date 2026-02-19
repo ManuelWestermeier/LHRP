@@ -10,8 +10,6 @@ In LHRP sind alle Nodes grundsätzlich gleichgestellt (keine festen Rollen). Da 
 
 | Topologie | Nachteile im LHRP-Kontext |
 
-| :--- | :--- |
-
 | **Vollvermascht** | Hoher Speicherbedarf und ineffizientes Routing, da jede Node die gesamte Struktur kennen muss. |
 
 | **Bus** | Zu unflexibel und schlecht skalierbar bei dynamischen Änderungen. |
