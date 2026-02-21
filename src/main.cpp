@@ -173,5 +173,13 @@ void loop()
     Serial.println(net.send(destAddress, payload) ? "Send Y" : "Error Y");
   }
 
+  {
+    Address destAddress = CVG.node4;
+    std::vector<uint8_t> payload(net.maxPayloadSize(destAddress), 0);
+    if (!payload.empty())
+      payload[0] = yValue > 200 && xValue > 200 ? 255 : 0;
+    Serial.println(net.send(destAddress, payload) ? "Send Y" : "Error Y");
+  }
+
   delay(100);
 }

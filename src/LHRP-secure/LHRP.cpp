@@ -5,6 +5,8 @@
 #include <esp_now.h>
 #include <Preferences.h>
 
+#define NO_REPLAY true
+
 LHRP_Node_Secure *LHRP_Node_Secure::instance = nullptr;
 unordered_map<string, LHRP_Node_Secure::PeerState> LHRP_Node_Secure::peerStates;
 
@@ -113,6 +115,9 @@ uint32_t LHRP_Node_Secure::getNextSendSeq(const array<uint8_t, 6> &mac)
 
 void LHRP_Node_Secure::maybeFlushToNVS(const string &macKey, PeerState &state)
 {
+    if (NO_REPLAY)
+        return;
+
     uint32_t now = millis();
     if (now - state.lastFlushTime < 10000)
         return; // nur alle 10 Sekunden
@@ -182,7 +187,7 @@ void LHRP_Node_Secure::onReceive(const uint8_t *mac, const uint8_t *data, int le
     string macKey = uint8ArrayToHex(mac, 6);
     auto &state = peerStates[macKey];
 
-    if ((int32_t)(p.seq - state.lastSeenSeq) <= 0)
+    if ((int32_t)(p.seq - state.lastSeenSeq) <= 0 && !NO_REPLAY)
         return;
 
     state.lastSeenSeq = p.seq;
